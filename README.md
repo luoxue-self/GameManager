@@ -49,6 +49,35 @@
 
 要求 Python 3.10+。
 
+#### 推荐：镜像安装器（国内网络自动加速）
+
+`install.py` 会按顺序探测阿里云 / 清华 / 中科大 / 腾讯云 / 华为云等镜像，
+自动选一个可用的完成安装：
+
+```bash
+python install.py                    # 自动探测可用镜像
+python install.py --mirror tsinghua  # 指定镜像
+python install.py --mirror aliyun --venv --dev --check
+python install.py --index-url https://你的镜像/simple
+```
+
+Windows 也可以直接双击 `install.bat`。
+
+| 参数 | 作用 |
+|---|---|
+| `--mirror auto/aliyun/tsinghua/ustc/tencent/huawei/pypi` | 选择镜像，默认 `auto` |
+| `--index-url URL` | 自定义镜像（优先级最高，也识别环境变量 `PIP_INDEX_URL`） |
+| `--venv` | 在项目下创建/复用 `.venv` 后安装 |
+| `--dev` | 额外安装 pytest、httpx |
+| `--check` | 安装后做依赖导入自检 |
+| `--build` | 安装后直接执行 `build.py` 打包 |
+| `--save-config` | 把镜像写入当前用户的 pip 配置（会影响其他项目） |
+| `--trusted-host HOST` | 镜像 HTTPS 证书有问题时使用 |
+| `--timeout 60` | pip 网络超时秒数 |
+| `--dry-run` | 只打印将执行的命令，不真正安装 |
+
+#### 手动安装
+
 ```bash
 python -m venv .venv
 # Windows
@@ -56,11 +85,17 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 
-pip install -r requirements.txt
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple
 
 python desktop.py     # 桌面窗口
 # 或
 python app.py         # 网页模式：http://127.0.0.1:8000
+```
+
+也可以把镜像永久写入 pip 配置：
+
+```bash
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 首次运行会在终端打印管理员账号密码，同时写入 `data/初始密码.txt`。
@@ -192,9 +227,10 @@ pip install pytest httpx
 python -m pytest -q
 ```
 
-覆盖（24 个用例）：归一化 / 相似度阈值、拼音全拼与首字母、管理员与表结构、编号唯一索引、
+覆盖（31 个用例）：归一化 / 相似度阈值、拼音全拼与首字母、管理员与表结构、编号唯一索引、
 Excel 导出→清库→导入往返（含内嵌图片）、zip 图片匹配、分表表头、缺表头报错、导入更新模式、
-登录鉴权、图片鉴权、增删改查、409 判重、上传、查重、导出、导入预检、密码修改、数据备份、损坏 xlsx 报错、安全响应头。
+登录鉴权、图片鉴权、增删改查、409 判重、上传、查重、导出、导入预检、密码修改、数据备份、损坏 xlsx 报错、安全响应头、
+镜像源选择与 pip 命令拼装。
 
 ## 🛠 目录结构
 
@@ -212,6 +248,8 @@ game-manager/
 ├── docs/                      # 架构图与界面截图
 ├── tests/                     # pytest 用例
 ├── data/                      # 运行时数据（不进 Git）
+├── install.py                 # 镜像源依赖安装器
+├── install.bat                # Windows 双击安装
 ├── pyinstaller.spec
 ├── build.py
 ├── requirements.txt
@@ -231,6 +269,11 @@ game-manager/
 
 **Q：杀毒软件报毒？**
 PyInstaller 打包的 exe 常见误报，加白名单，或用源码自行打包。
+
+**Q：pip 安装很慢 / 超时？**
+用镜像安装器：`python install.py --mirror aliyun`；仍然失败可以换 `--mirror tsinghua`，
+或加 `--trusted-host mirrors.aliyun.com`、`--index-url https://你的镜像/simple`。
+只使用打包 exe 的话不需要安装任何 Python 依赖。
 
 **Q：忘记管理员密码？**
 如果还能进入界面：点右上角 ⚙ → 修改密码。
@@ -260,7 +303,8 @@ Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwe
 - Excel 导入支持**更新已有条目**（保留原封面），预检与结果里分别统计「可更新 / 已更新」
 - 封面图片改为**登录后访问**，不再暴露公开静态目录；API 加 `no-store` 与常用安全响应头
 - 损坏 / 非 xlsx 文件返回可读的 400 提示，而不是 500
-- 测试扩充到 24 个，打包版重新验证登录、拼音搜索、备份与密码修改
+- 新增 **`install.py` 镜像源安装器**：自动探测阿里云 / 清华 / 中科大 / 腾讯云 / 华为云，支持 `--venv`、`--dev`、`--check`、`--build`、`--save-config`
+- 测试扩充到 31 个，打包版重新验证登录、拼音搜索、备份与密码修改
 
 ### v1.0.0
 

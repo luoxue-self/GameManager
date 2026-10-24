@@ -1,0 +1,2 @@
+# 双击安装脚本使用 Windows 换行
+*.bat text eol=crlf
