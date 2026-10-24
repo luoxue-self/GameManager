@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import socket
 import sys
 import threading
@@ -38,6 +39,22 @@ def _fatal(msg: str) -> None:
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(None, msg, "游戏库管理器", 0x10)
+        except Exception:
+            pass
+
+
+def _info(msg: str) -> None:
+    """成功提示：写日志 + 系统弹窗（无控制台的 exe 也能看到）。"""
+    try:
+        if sys.stdout:
+            print(msg)
+    except Exception:
+        pass
+    _log(msg)
+    if os.name == "nt":
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, msg, "游戏库管理器", 0x40)
         except Exception:
             pass
 
@@ -115,6 +132,44 @@ def _open_browser(url: str) -> None:
         pass
 
 
+def reset_password(argv: list[str]) -> int:
+    """命令行重置管理员密码：--reset-password [新密码]。
+
+    不传新密码时生成随机密码，写入 data/初始密码.txt 并弹窗显示。
+    """
+    _log("执行密码重置")
+    db.ensure_admin()
+    new = None
+    try:
+        idx = argv.index("--reset-password")
+        if idx + 1 < len(argv) and not argv[idx + 1].startswith("-"):
+            new = argv[idx + 1]
+    except ValueError:
+        pass
+    if new is not None and len(new) < 6:
+        _fatal("新密码至少 6 位")
+        return 1
+    new = new or secrets.token_urlsafe(9)
+    if not db.set_password("admin", new):
+        _fatal("重置失败：找不到 admin 用户")
+        return 1
+
+    note = os.path.join(DATA_DIR, "初始密码.txt")
+    try:
+        with open(note, "w", encoding="utf-8") as f:
+            f.write("游戏库管理器 · 密码已重置\n"
+                    "==============================\n"
+                    "用户名：admin\n"
+                    f"密　码：{new}\n\n"
+                    "请登录后到右上角 ⚙ 修改密码。\n")
+    except OSError as e:
+        _log(f"写入初始密码文件失败：{e}")
+
+    _info(f"管理员密码已重置：{new}\n\n"
+          f"已写入 data/初始密码.txt。\n请登录后尽快修改。")
+    return 0
+
+
 def _main() -> int:
     _log(f"启动：frozen={getattr(sys, 'frozen', False)} "
          f"exe={sys.executable} data={DATA_DIR}")
@@ -168,6 +223,8 @@ def _main() -> int:
 
 def main() -> int:
     try:
+        if "--reset-password" in sys.argv[1:]:
+            return reset_password(sys.argv[1:])
         return _main()
     except SystemExit:
         raise

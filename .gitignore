@@ -12,6 +12,7 @@ data/*
 # 打包产物
 build/
 dist/
+release/
 *.spec.bak
 
 # 测试缓存

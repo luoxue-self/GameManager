@@ -5,6 +5,9 @@
 
 ![主界面](docs/screenshot.png)
 
+> 第一次使用？请先看 **[使用指南.html](使用指南.html)**（图文版，双击即可阅读），
+> 或 [使用指南.md](使用指南.md)。
+
 ## ✨ 功能
 
 | 功能 | 说明 |
@@ -14,12 +17,12 @@
 | 拼音搜索 | 支持全拼与首字母：`saierda`、`sai er da`、`sedc` 都能命中「塞尔达传说」 |
 | 相似去重 | 名称归一化 + 相似度打分：≥85% 保存时拦截确认，60%–85% 仅提示 |
 | 卡片 → 详情 | 点击卡片查看全部字段，详情内可直接修改 / 删除 |
-| 筛选排序 | 按本地状态筛选，按最新添加 / 名称 / 评分 / 年份排序（浏览器会记住排序方式） |
+| 筛选排序 | 按本地状态筛选，按最新添加 / 名称 / 评分 / 年份排序（网页模式会记住排序方式） |
 | 封面图片 | 支持本地上传（自动压缩到长边 1200px）、图片 URL、文件名；图片需登录后访问 |
 | Excel 导出 | 图片作为浮动对象内嵌到「游戏图片」列，可直接在 WPS / Excel 里看到 |
 | Excel 导入 | 支持内嵌图片、文件名 + zip 图片包、外链三种来源；先预检再入库，重复条目可「跳过」或「更新已有」 |
 | 全库查重 | 一键按 ≥85% 相似度分组，点击条目直达详情 |
-| 账号安全 | scrypt 哈希 + 签名 Cookie；界面内可修改密码；同一 IP 连续失败 8 次锁定 5 分钟 |
+| 账号安全 | scrypt 哈希 + 签名 Cookie；界面内可修改密码；忘记密码可双击 `重置密码.bat`；同一 IP 连续失败 8 次锁定 5 分钟 |
 | 数据备份 | 一键下载包含 games.db 与全部封面的 zip，离线保存或迁移 |
 | 两种形态 | `desktop.py` 原生窗口（pywebview） / `app.py` 网页模式 |
 | 绿色便携 | 全部数据在 `data/`，整个文件夹拷贝即迁移 |
@@ -68,7 +71,7 @@ Windows 也可以直接双击 `install.bat`。
 | `--mirror auto/aliyun/tsinghua/ustc/tencent/huawei/pypi` | 选择镜像，默认 `auto` |
 | `--index-url URL` | 自定义镜像（优先级最高，也识别环境变量 `PIP_INDEX_URL`） |
 | `--venv` | 在项目下创建/复用 `.venv` 后安装 |
-| `--dev` | 额外安装 pytest、httpx |
+| `--dev` | 额外安装 pytest、httpx、markdown（生成指南用） |
 | `--check` | 安装后做依赖导入自检 |
 | `--build` | 安装后直接执行 `build.py` 打包 |
 | `--save-config` | 把镜像写入当前用户的 pip 配置（会影响其他项目） |
@@ -208,6 +211,15 @@ python build.py            # 产物在 dist/游戏库管理器/
 > ⚠️ `build.py` 会先清空 `dist/` 再打包。如果 `dist/游戏库管理器/` 里已经在存数据，
 > 请先备份 `dist/游戏库管理器/data/`，打包完成后放回。
 
+发布用的整合包（exe + 文档 + 源码）可以这样生成：
+
+```bash
+python tools/build_guide.py       # 生成自包含的 使用指南.html
+python tools/make_package.py      # 产物在 release/游戏库管理器-v1.1.1-整合包.zip
+```
+
+`build_guide.py` 需要 `markdown`（`python install.py --dev` 会一并安装）。
+
 打包产物：
 
 ```
@@ -227,7 +239,7 @@ pip install pytest httpx
 python -m pytest -q
 ```
 
-覆盖（31 个用例）：归一化 / 相似度阈值、拼音全拼与首字母、管理员与表结构、编号唯一索引、
+覆盖（32 个用例）：归一化 / 相似度阈值、拼音全拼与首字母、管理员与表结构、编号唯一索引、
 Excel 导出→清库→导入往返（含内嵌图片）、zip 图片匹配、分表表头、缺表头报错、导入更新模式、
 登录鉴权、图片鉴权、增删改查、409 判重、上传、查重、导出、导入预检、密码修改、数据备份、损坏 xlsx 报错、安全响应头、
 镜像源选择与 pip 命令拼装。
@@ -245,11 +257,15 @@ game-manager/
 │   ├── login.html
 │   └── index.html
 ├── assets/icon.ico
-├── docs/                      # 架构图与界面截图
+├── docs/                      # 架构图、界面截图、完整性检查报告
 ├── tests/                     # pytest 用例
+├── tools/                     # 指南生成 / 整合包构建脚本
 ├── data/                      # 运行时数据（不进 Git）
 ├── install.py                 # 镜像源依赖安装器
 ├── install.bat                # Windows 双击安装
+├── 重置密码.bat                # 忘记密码时双击重置（exe 用户）
+├── 使用指南.md                 # 面向普通用户的图文指南
+├── 使用指南.html               # 自包含图文指南（双击阅读）
 ├── pyinstaller.spec
 ├── build.py
 ├── requirements.txt
@@ -277,10 +293,8 @@ PyInstaller 打包的 exe 常见误报，加白名单，或用源码自行打包
 
 **Q：忘记管理员密码？**
 如果还能进入界面：点右上角 ⚙ → 修改密码。
-完全忘记时，删除 `data/games.db` 中的 users 记录后重启会重新生成，或执行：
-```bash
-python -c "import db; db.set_password('admin','新密码')"
-```
+完全忘记时：双击程序目录里的 `重置密码.bat`，会重置为随机密码并弹窗显示，同时写入 `data/初始密码.txt`。
+源码运行也可以执行 `python desktop.py --reset-password`（可跟新密码），或 `python -c "import db; db.set_password('admin','新密码')"`。
 
 **Q：怎么备份 / 恢复到另一台电脑？**
 界面右上角 ⚙ → 「下载备份」，会得到一个包含 `games.db` 和全部封面的 zip。
@@ -294,6 +308,14 @@ Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwe
 桌面窗口依赖 `pywebview`，也可只用 `python app.py` 走浏览器。
 
 ## 📝 更新日志
+
+### v1.1.1
+
+- 修复：Excel 导入「更新已有条目」时，库中有多条近似记录会反复匹配同一条；现在优先完全同名，再按相似度取最佳匹配
+- 修复：新增/编辑弹窗里「游戏名」必填星号换行的问题
+- 新增：`重置密码.bat` / `desktop.py --reset-password`，exe 用户忘记密码也能自助恢复
+- 完整性检查：41 项真实 API 验收、32 个单测、打包 exe 与整合包复测通过
+- 新增面向普通用户的《使用指南》与整合包（exe + 文档 + 源码）
 
 ### v1.1.0
 
@@ -309,6 +331,12 @@ Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwe
 ### v1.0.0
 
 - FastAPI + SQLite + pywebview 完整实现，含模糊搜索、相似去重、Excel 双向导入导出、桌面 exe 与 CI
+
+## ✅ 完整性检查
+
+- v1.1.1 检查报告：[docs/完整性检查报告.md](docs/完整性检查报告.md)
+- 32 个自动化测试、41 项真实 API 验收、界面走查、打包 exe 与整合包复测均通过
+- 面向普通用户的图文指南：[使用指南.html](使用指南.html) ｜ [使用指南.md](使用指南.md)
 
 ## 📄 License
 

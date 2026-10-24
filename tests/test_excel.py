@@ -168,6 +168,49 @@ def test_import_update_existing_mode():
     con.close()
 
 
+def test_import_update_matches_each_near_duplicate_record():
+    """库里存在两条归一化后同名的记录时，更新模式应按最接近的那条匹配。"""
+    from openpyxl import Workbook
+
+    con = _clear()
+    samples = [
+        ("塞尔达传说：王国之泪", "旧类型A", "ZA"),
+        ("塞尔达传说 王国之泪 中文版", "旧类型B", "ZB"),
+    ]
+    for name, gtype, code in samples:
+        py_full, py_ini = dedup.pinyin(name)
+        con.execute(
+            """INSERT INTO games(name,name_norm,name_pinyin,name_initials,type,
+               code,cover,saved_at,download_url,how_to,rating,local_status,
+               year,location) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (name, dedup.normalize(name), py_full, py_ini, gtype, code, "",
+             "2024-01-01 00:00", "", "", 3, "未下载", 2020, ""))
+    con.commit()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(excel_io.HEADERS)
+    ws.append(["塞尔达传说：王国之泪", "新类型A", "ZA", "", "", "", "", "4", "已下载", "2023", ""])
+    ws.append(["塞尔达传说 王国之泪 中文版", "新类型B", "ZB", "", "", "", "", "5", "已通关", "2023", ""])
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    res = excel_io.import_xlsx(buf.getvalue(), con, db.IMG_DIR,
+                               dry_run=False, on_dup="update")
+    assert res["updated"] == 2 and res["skipped_dup"] == 0, res
+
+    a = con.execute("SELECT * FROM games WHERE name=?",
+                    ("塞尔达传说：王国之泪",)).fetchone()
+    b = con.execute("SELECT * FROM games WHERE name=?",
+                    ("塞尔达传说 王国之泪 中文版",)).fetchone()
+    assert a["type"] == "新类型A" and b["type"] == "新类型B"
+    assert a["code"] == "ZA" and b["code"] == "ZB"
+
+    con.execute("DELETE FROM games")
+    con.commit()
+    con.close()
+
+
 def test_import_matches_zip_image_by_filename():
     from openpyxl import Workbook
     wb = Workbook()

@@ -102,7 +102,7 @@ def _backfill_pinyin() -> int:
         con.close()
 
 
-app = FastAPI(title="游戏库", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="游戏库", version="1.1.1", lifespan=lifespan)
 os.makedirs(db.IMG_DIR, exist_ok=True)
 
 

@@ -651,7 +651,7 @@ function openEdit(g){
     '<div class="dlg-head"><h2>' + (isEdit ? '编辑游戏' : '新增游戏') + '</h2>'
     + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
     + '<form class="form" id="editForm">'
-    +   '<label class="f">游戏名 <span class="req">*</span>'
+    +   '<label class="f"><span>游戏名 <span class="req">*</span></span>'
     +     '<input id="fName" name="name" maxlength="200" required autocomplete="off" '
     +       'value="' + esc(g.name || '') + '" placeholder="例如：塞尔达传说：王国之泪"></label>'
     +   '<label class="f">游戏类型'

@@ -192,6 +192,29 @@ def _find_header(ws, max_scan: int = 10) -> tuple[int, dict[int, str]]:
     return 0, {}
 
 
+def _match_existing(existing, name: str, norm: str, threshold: float):
+    """在库里找最合适的已有记录。
+
+    优先级：完全同名 > 归一化同名 > 相似度最高且 ≥ 阈值。
+    （同归一化名的记录可能有多条，比如被 force 保存过的近似条目。）
+    """
+    exact_norm = None
+    best = None
+    for gid, gname, gnorm in existing:
+        if gname == name:
+            return gid, gname
+        if exact_norm is None and gnorm == norm:
+            exact_norm = (gid, gname)
+        score = dedup.similarity(norm, gnorm)
+        if best is None or score > best[2]:
+            best = (gid, gname, score)
+    if exact_norm is not None:
+        return exact_norm
+    if best is not None and best[2] >= threshold:
+        return best[0], best[1]
+    return None, None
+
+
 def _inline_images(ws) -> dict[int, bytes]:
     """{Excel 行号(1 起): 图片字节}"""
     out: dict[int, bytes] = {}
@@ -265,11 +288,7 @@ def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
             continue
 
         norm = dedup.normalize(name)
-        hit_id = hit_name = None
-        for gid, gname, gnorm in existing:
-            if gnorm == norm or dedup.similarity(norm, gnorm) >= dup_threshold:
-                hit_id, hit_name = gid, gname
-                break
+        hit_id, hit_name = _match_existing(existing, name, norm, dup_threshold)
         if hit_id is None:
             for b in batch:
                 if b["name_norm"] == norm or \

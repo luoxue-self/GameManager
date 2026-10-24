@@ -23,7 +23,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.abspath(__file__))
 REQUIREMENTS = os.path.join(ROOT, "requirements.txt")
 VENV_DIR = os.path.join(ROOT, ".venv")
-DEV_PACKAGES = ["pytest", "httpx"]
+DEV_PACKAGES = ["pytest", "httpx", "markdown"]
 
 # 名称 -> (显示名, simple index URL)
 MIRRORS = {
