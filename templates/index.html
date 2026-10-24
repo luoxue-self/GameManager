@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>游戏库 · 管理</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel-2:#1e222b; --panel-3:#242a36;
+    --text:#e8eaed; --muted:#8b93a1; --line:#2a2f3a;
+    --accent:#5b8cff; --danger:#ef4444; --warn:#f5b942; --ok:#34d399;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  html{scrollbar-color:#39404e transparent}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:14px/1.55 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body.locked{overflow:hidden}
+  button{font-family:inherit}
+
+  /* ---------------- 顶栏 ---------------- */
+  .topbar{
+    position:sticky; top:0; z-index:30; display:flex; align-items:center;
+    gap:14px; flex-wrap:wrap; padding:12px 26px;
+    background:rgba(15,17,21,.86); backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; font-size:16px; white-space:nowrap}
+  .brand .dot{
+    width:31px; height:31px; border-radius:9px; display:grid; place-items:center;
+    font-size:16px; background:linear-gradient(145deg,#233a68,#16203a);
+    border:1px solid #33538f; box-shadow:0 4px 14px #5b8cff33;
+  }
+  .search{position:relative; flex:1 1 280px; max-width:560px; min-width:190px}
+  .search input{
+    width:100%; padding:10px 40px 10px 39px; border-radius:999px;
+    border:1px solid var(--line); background:var(--panel); color:var(--text);
+    font:inherit; outline:none; transition:.18s;
+  }
+  .search input::placeholder{color:#6b7382}
+  .search input:focus{border-color:var(--accent); background:var(--panel-2); box-shadow:0 0 0 3px #5b8cff22}
+  .search .ico{position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none}
+  .search .clear{
+    position:absolute; right:7px; top:50%; transform:translateY(-50%);
+    border:0; background:none; color:var(--muted); cursor:pointer;
+    font-size:14px; padding:5px 9px; border-radius:50%;
+  }
+  .search .clear:hover{color:var(--text); background:#ffffff10}
+  .tools{display:flex; gap:8px; flex-wrap:wrap}
+  .user{display:flex; align-items:center; gap:10px; margin-left:auto; color:var(--muted); font-size:13px}
+  .user b{color:var(--text); font-weight:600}
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; padding:9px 15px;
+    border-radius:9px; border:1px solid var(--line); background:var(--panel);
+    color:var(--text); font:inherit; cursor:pointer; white-space:nowrap; transition:.15s;
+  }
+  .btn:hover{background:var(--panel-3); border-color:#39404e}
+  .btn:disabled{opacity:.6; cursor:default}
+  .btn.primary{
+    background:linear-gradient(180deg,#6b98ff,#4b7bf5); border-color:#4b7bf5;
+    color:#fff; box-shadow:0 6px 18px #4b7bf530;
+  }
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.ghost{background:transparent}
+  .btn.danger{color:#ffb4b4; border-color:#7f2a2a}
+  .btn.danger:hover{background:#3a1a1d}
+
+  /* ---------------- 主体 ---------------- */
+  main{padding:20px 26px 60px; max-width:1680px; margin:0 auto}
+  .bar{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    flex-wrap:wrap; margin-bottom:18px; color:var(--muted); font-size:13px;
+  }
+  .keys{display:flex; gap:16px; flex-wrap:wrap}
+  kbd{
+    font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
+    background:var(--panel-2); border:1px solid var(--line); border-bottom-width:2px;
+    border-radius:4px; padding:2px 5px; color:var(--muted);
+  }
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(205px,1fr)); gap:20px}
+  @media (max-width:520px){.grid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:14px}}
+
+  .card{
+    position:relative; display:flex; flex-direction:column; overflow:hidden;
+    background:var(--panel); border:1px solid transparent; border-radius:var(--radius);
+    cursor:pointer; outline:none;
+    transition:transform .18s, box-shadow .18s, border-color .18s;
+  }
+  .card:hover,.card:focus-visible{
+    transform:translateY(-4px); border-color:#ffffff1a;
+    box-shadow:0 16px 36px #000a;
+  }
+  .cover{
+    position:relative; aspect-ratio:3/4; overflow:hidden; flex:none;
+    background:linear-gradient(160deg,#242a36,#171a21);
+  }
+  .cover .ph{position:absolute; inset:0; display:grid; place-items:center; font-size:36px; opacity:.28}
+  .cover img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    transition:transform .4s; color:transparent;
+  }
+  .card:hover .cover img{transform:scale(1.05)}
+  .chip{
+    position:absolute; left:9px; top:9px; padding:3px 9px; border-radius:999px;
+    font-size:11px; line-height:1.5; color:#dfe4ee;
+    background:#0f1115cc; border:1px solid #ffffff22; backdrop-filter:blur(4px);
+  }
+  .chip.static{position:static; display:inline-block; backdrop-filter:none; padding:2px 9px; margin-left:4px}
+  .chip.downloaded{color:#a7f3d0; border-color:#34d39955}
+  .chip.playing{color:#bfd4ff; border-color:#5b8cff66}
+  .chip.done{color:#ffe3a3; border-color:#f5b94266}
+  .chip.dropped{color:#ffb4b4; border-color:#ef444455}
+  .score{
+    position:absolute; right:9px; top:9px; font-size:11px; padding:3px 8px;
+    border-radius:999px; background:#5b8cffee; color:#fff;
+  }
+  .card-body{padding:11px 13px 13px; display:flex; flex-direction:column; gap:7px; flex:1}
+  .card-title{
+    margin:0; font-size:14px; font-weight:600; line-height:1.4; min-height:2.8em;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    line-clamp:2; overflow:hidden;
+  }
+  .card-meta{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    color:var(--muted); font-size:12px; margin-top:auto;
+  }
+  .stars{
+    position:relative; display:inline-block; color:#4a5160;
+    letter-spacing:1px; white-space:nowrap; vertical-align:middle;
+  }
+  .stars .on{
+    position:absolute; left:0; top:0; overflow:hidden; color:var(--warn);
+    white-space:nowrap; pointer-events:none;
+  }
+  .card-actions{display:flex; gap:8px; opacity:0; transform:translateY(4px); transition:.16s}
+  .card:hover .card-actions,.card:focus-within .card-actions{opacity:1; transform:none}
+  @media (hover:none){.card-actions{opacity:1; transform:none}}
+  .mini{
+    flex:1; padding:6px 0; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); font-size:12px; cursor:pointer;
+  }
+  .mini:hover{background:var(--panel-3)}
+  .mini.del:hover{background:#3a1a1d; border-color:#7f2a2a; color:#ffb4b4}
+
+  .empty{display:grid; place-items:center; text-align:center; padding:72px 20px; color:var(--muted)}
+  .empty .icon{font-size:44px; opacity:.5; margin-bottom:12px}
+  .empty h3{margin:0 0 6px; color:var(--text); font-size:16px}
+  .empty p{margin:0; font-size:13px}
+  .empty.small{padding:26px 10px}
+
+  /* ---------------- 弹窗 ---------------- */
+  .mask{
+    position:fixed; inset:0; z-index:50; display:none; place-items:center;
+    padding:18px; background:#0009; backdrop-filter:blur(3px);
+  }
+  .mask.show{display:grid}
+  .dialog{
+    width:min(900px,96vw); max-height:92vh; overflow:auto;
+    background:var(--panel); border:1px solid var(--line); border-radius:18px;
+    padding:22px 24px; box-shadow:0 30px 80px #000c;
+    animation:pop .16s ease-out;
+  }
+  .dialog::-webkit-scrollbar{width:10px}
+  .dialog::-webkit-scrollbar-thumb{background:#39404e; border-radius:8px; border:3px solid var(--panel)}
+  @keyframes pop{from{transform:translateY(8px) scale(.99); opacity:0} to{transform:none; opacity:1}}
+  .dlg-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px}
+  .dlg-head h2{margin:0; font-size:18px}
+  .icon{
+    border:0; background:none; color:var(--muted); font-size:16px;
+    cursor:pointer; padding:6px 9px; border-radius:8px;
+  }
+  .icon:hover{background:#ffffff10; color:var(--text)}
+  .hint{margin:0 0 14px; color:var(--muted); font-size:12.5px; line-height:1.65}
+  .dlg-foot{display:flex; justify-content:flex-end; gap:10px; margin-top:22px; flex-wrap:wrap}
+
+  .detail{display:grid; grid-template-columns:260px 1fr; gap:24px}
+  @media (max-width:640px){.detail{grid-template-columns:1fr}}
+  .poster{
+    position:relative; aspect-ratio:3/4; border-radius:12px; overflow:hidden;
+    background:var(--panel-2); border:1px solid var(--line);
+  }
+  .poster .ph{position:absolute; inset:0; display:grid; place-items:center; font-size:36px; opacity:.3}
+  .poster img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+  .name{margin:0 0 5px; font-size:22px; line-height:1.32; word-break:break-word}
+  .subline{color:var(--muted); font-size:13px; margin-bottom:16px; word-break:break-word}
+  .kv{display:grid; grid-template-columns:84px 1fr; gap:9px 14px; font-size:13px; margin:0}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0; word-break:break-word}
+  .howto{margin-top:18px}
+  .howto .label{color:var(--muted); font-size:12px; margin-bottom:5px}
+  .howto .text{
+    white-space:pre-wrap; background:var(--panel-2); border:1px solid var(--line);
+    padding:12px; border-radius:10px; max-height:190px; overflow:auto;
+    font-size:13px; line-height:1.65; word-break:break-word;
+  }
+  .link{color:#8fb0ff; text-decoration:none; word-break:break-all}
+  .link:hover{text-decoration:underline}
+
+  /* ---------------- 表单 ---------------- */
+  .form{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px}
+  @media (max-width:640px){.form{grid-template-columns:1fr}}
+  .f{display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); min-width:0}
+  .f.full{grid-column:1/-1}
+  .f input,.f textarea{
+    width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); font:inherit; outline:none; transition:.15s;
+  }
+  .f input:focus,.f textarea:focus{border-color:var(--accent); box-shadow:0 0 0 3px #5b8cff22}
+  .f textarea{resize:vertical; min-height:78px}
+  .req{color:var(--danger)}
+  .cover-row{display:grid; grid-template-columns:120px 1fr; gap:14px; align-items:start; margin-top:2px}
+  .cover-preview{
+    position:relative; aspect-ratio:3/4; border-radius:10px; overflow:hidden;
+    background:var(--panel-2); border:1px solid var(--line);
+  }
+  .cover-preview .ph{position:absolute; inset:0; display:grid; place-items:center; font-size:26px; opacity:.35}
+  .cover-preview img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+  .cover-side{display:flex; flex-direction:column; gap:9px; min-width:0}
+  .cover-actions{display:flex; gap:8px; flex-wrap:wrap}
+  .cover-actions .btn{padding:8px 13px; font-size:12.5px}
+  .tiny{font-size:11.5px; color:#5f6877}
+  .dupHint{grid-column:1/-1}
+  .dup{
+    background:#3a2a1a; border:1px solid #7f5a2a; color:#ffd9a8;
+    padding:10px 12px; border-radius:9px; font-size:13px; margin-top:2px;
+  }
+  .dup.similar{background:#1e2a3a; border-color:#2f4a6f; color:#bfd4ff}
+
+  /* ---------------- 导入结果 / 查重 ---------------- */
+  .stats{
+    display:flex; flex-wrap:wrap; gap:8px 18px; background:var(--panel-2);
+    border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    margin-top:14px; font-size:13px; color:var(--muted);
+  }
+  .stats b{color:var(--text)}
+  .stats .ok{color:var(--ok)} .stats .warn{color:var(--warn)} .stats .err{color:#ff9b9b}
+  details{margin-top:12px}
+  summary{cursor:pointer; color:var(--muted); font-size:13px; outline:none}
+  summary:hover{color:var(--text)}
+  .table-wrap{max-height:300px; overflow:auto; margin-top:10px; border:1px solid var(--line); border-radius:10px}
+  table{width:100%; border-collapse:collapse; font-size:12px}
+  th,td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{position:sticky; top:0; background:var(--panel-3); color:var(--muted); font-weight:600}
+  td:first-child{width:56px; color:var(--muted)}
+  .dup-list{display:flex; flex-direction:column; gap:12px; margin-top:4px}
+  .dup-group{border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--panel-2)}
+  .dup-title{
+    padding:8px 12px; font-size:12px; color:var(--warn);
+    background:#f5b94210; border-bottom:1px solid var(--line);
+  }
+  .dup-item{
+    display:flex; justify-content:space-between; gap:12px; padding:9px 12px;
+    cursor:pointer; font-size:13px; border-bottom:1px solid #ffffff08;
+  }
+  .dup-item:last-child{border-bottom:0}
+  .dup-item:hover{background:#ffffff08}
+  .pct{color:var(--muted); font-size:12px; white-space:nowrap}
+
+  /* ---------------- Toast ---------------- */
+  .toast{
+    position:fixed; left:50%; bottom:26px; z-index:80; max-width:min(580px,92vw);
+    padding:11px 18px; border-radius:11px; background:#232833;
+    border:1px solid #3a4150; color:var(--text); font-size:13px;
+    opacity:0; pointer-events:none; transform:translate(-50%,18px);
+    transition:opacity .2s, transform .2s; box-shadow:0 16px 40px #000a;
+  }
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+  .toast.ok{border-color:#2f7d5b; background:#16281f; color:#c8f7e3}
+  .toast.error{border-color:#7f2a2a; background:#2b1719; color:#ffc9c9}
+  .toast.warn{border-color:#7f5a2a; background:#2b2416; color:#ffe3b3}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="dot">🎮</span><span>游戏库</span></div>
+  <div class="search">
+    <span class="ico">⌕</span>
+    <input id="q" placeholder="搜索游戏名：模糊匹配、相似度排序…" autocomplete="off" spellcheck="false" aria-label="搜索游戏">
+    <button class="clear" id="qClear" type="button" title="清空搜索" hidden>✕</button>
+  </div>
+  <div class="tools">
+    <button class="btn primary" id="btnAdd" type="button">＋ 新增</button>
+    <button class="btn" id="btnDup" type="button">查重</button>
+    <button class="btn" id="btnExport" type="button">导出</button>
+    <button class="btn" id="btnImport" type="button">导入</button>
+  </div>
+  <div class="user">
+    <span>👤 <b id="who">…</b></span>
+    <button class="btn ghost" id="btnLogout" type="button">退出</button>
+  </div>
+</header>
+
+<main>
+  <div class="bar">
+    <span id="count">加载中…</span>
+    <span class="keys">
+      <span><kbd>/</kbd> 搜索</span>
+      <span><kbd>Esc</kbd> 关闭弹窗</span>
+      <span>点击卡片查看详情</span>
+    </span>
+  </div>
+
+  <section class="grid" id="grid" aria-live="polite"></section>
+  <section class="empty" id="empty" hidden>
+    <div class="icon">🎮</div>
+    <h3 id="emptyTitle">游戏库还是空的</h3>
+    <p id="emptyDesc">点击右上角「＋ 新增」开始建立你的游戏库</p>
+  </section>
+</main>
+
+<div class="mask" id="mask" aria-hidden="true">
+  <div class="dialog" id="dlg" role="dialog" aria-modal="true"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<datalist id="statusList">
+  <option value="未下载"><option value="已下载"><option value="游玩中">
+  <option value="已通关"><option value="已弃坑">
+</datalist>
+<datalist id="typeList">
+  <option value="RPG"><option value="动作"><option value="冒险"><option value="射击">
+  <option value="策略"><option value="模拟"><option value="体育"><option value="竞速">
+  <option value="解谜"><option value="独立"><option value="其他">
+</datalist>
+
+<script>
+'use strict';
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const grid = $('#grid'), empty = $('#empty'), mask = $('#mask'), dlg = $('#dlg');
+
+const state = { items: [], byId: new Map(), editId: null, editCover: '' };
+let toastTimer, searchTimer, dupTimer;
+
+/* ------------------------------ 工具 ------------------------------ */
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function coverSrc(g){
+  const c = (g.cover || '').trim();
+  if (!c) return '';
+  if (/^https?:\/\//i.test(c)) return c;
+  return '/images/' + encodeURIComponent(c);
+}
+
+function statusClass(s){
+  switch ((s || '').trim()){
+    case '未下载': return 'not-downloaded';
+    case '已下载': return 'downloaded';
+    case '游玩中': return 'playing';
+    case '已通关': return 'done';
+    case '已弃坑': case '弃坑': return 'dropped';
+    default: return 'custom';
+  }
+}
+
+function stars(rating){
+  const r = Math.max(0, Math.min(5, Number(rating) || 0));
+  const pct = (r / 5 * 100).toFixed(0);
+  return '<span class="on" style="width:' + pct + '%">★★★★★</span>'
+    + '<span class="off">★★★★★</span>';
+}
+
+function toLocal(s){
+  if (!s) return '';
+  const v = String(s).replace(' ', 'T').slice(0, 16);
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v : '';
+}
+
+async function api(path, opts){
+  const r = await fetch(path, opts || {});
+  if (r.status === 401){ location.href = '/login'; throw new Error('未登录'); }
+  let data = null;
+  const ct = r.headers.get('content-type') || '';
+  if (ct.includes('application/json')){
+    try { data = await r.json(); } catch (e) { data = null; }
+  }
+  if (!r.ok){
+    const raw = data && (data.detail || data.reason);
+    const err = new Error(typeof raw === 'string' ? raw : ('请求失败（' + r.status + '）'));
+    err.status = r.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+function toast(msg, type, ms){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, ms || 3200);
+}
+
+/* ------------------------------ 弹窗基座 ------------------------------ */
+function openMask(){
+  mask.classList.add('show');
+  mask.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('locked');
+}
+function closeDlg(){
+  mask.classList.remove('show');
+  mask.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('locked');
+  dlg.innerHTML = '';
+  state.editId = null;
+}
+function bindClose(){
+  dlg.querySelectorAll('[data-close]').forEach(b => { b.onclick = closeDlg; });
+}
+
+/* ------------------------------ 列表 ------------------------------ */
+async function load(){
+  const q = $('#q').value.trim();
+  try {
+    const rows = await api('/api/games?q=' + encodeURIComponent(q));
+    state.items = rows;
+    state.byId = new Map(rows.map(r => [r.id, r]));
+    render(rows, q);
+  } catch (e) {
+    if (e.message !== '未登录') toast(e.message, 'error');
+  }
+}
+
+function render(rows, q){
+  $('#count').textContent = q ? ('搜索到 ' + rows.length + ' 条') : ('共 ' + rows.length + ' 条游戏');
+  if (!rows.length){
+    grid.innerHTML = '';
+    empty.hidden = false;
+    $('#emptyTitle').textContent = q ? '没有匹配的游戏' : '游戏库还是空的';
+    $('#emptyDesc').textContent = q
+      ? '换个关键词试试，支持模糊匹配与相似度排序'
+      : '点击右上角「＋ 新增」开始建立你的游戏库';
+    return;
+  }
+  empty.hidden = true;
+  grid.innerHTML = rows.map(cardHtml).join('');
+}
+
+function cardHtml(g){
+  const src = coverSrc(g);
+  const rating = Number(g.rating) || 0;
+  return '<article class="card" data-id="' + g.id + '" tabindex="0" role="button" aria-label="' + esc(g.name) + '">'
+    + '<div class="cover">'
+    +   '<div class="ph">🎮</div>'
+    +   (src ? '<img src="' + esc(src) + '" alt="" loading="lazy" onerror="this.remove()">' : '')
+    +   (g.local_status ? '<span class="chip ' + statusClass(g.local_status) + '">' + esc(g.local_status) + '</span>' : '')
+    +   (g.score != null ? '<span class="score">相似 ' + Math.round(g.score * 100) + '%</span>' : '')
+    + '</div>'
+    + '<div class="card-body">'
+    +   '<h3 class="card-title">' + esc(g.name) + '</h3>'
+    +   '<div class="card-meta">'
+    +     '<span>' + (g.year ? esc(g.year) : '年份未知') + '</span>'
+    +     '<span class="stars" title="推荐指数 ' + rating + '">' + stars(rating) + '</span>'
+    +   '</div>'
+    +   '<div class="card-actions">'
+    +     '<button class="mini" data-act="edit" type="button">修改</button>'
+    +     '<button class="mini del" data-act="del" type="button">删除</button>'
+    +   '</div>'
+    + '</div>'
+    + '</article>';
+}
+
+grid.addEventListener('click', e => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  const id = Number(card.dataset.id);
+  const act = e.target.closest('[data-act]');
+  if (act){
+    if (act.dataset.act === 'edit') openEditById(id);
+    else if (act.dataset.act === 'del'){
+      const g = state.byId.get(id);
+      delGame(id, g ? g.name : '');
+    }
+    return;
+  }
+  openDetail(id);
+});
+
+grid.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('card')){
+    e.preventDefault();
+    openDetail(Number(e.target.dataset.id));
+  }
+});
+
+/* ------------------------------ 详情 ------------------------------ */
+async function openDetail(id){
+  try {
+    const g = await api('/api/games/' + id);
+    const src = coverSrc(g);
+    const link = g.download_url
+      ? (/^https?:\/\//i.test(g.download_url)
+          ? '<a class="link" href="' + esc(g.download_url) + '" target="_blank" rel="noopener noreferrer">' + esc(g.download_url) + '</a>'
+          : esc(g.download_url))
+      : '—';
+
+    dlg.innerHTML =
+      '<div class="dlg-head"><h2>游戏详情</h2>'
+      + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
+      + '<div class="detail">'
+      +   '<div class="poster"><div class="ph">🎮</div>'
+      +     (src ? '<img src="' + esc(src) + '" alt="' + esc(g.name) + '封面" onerror="this.remove()">' : '')
+      +   '</div>'
+      +   '<div>'
+      +     '<h3 class="name">' + esc(g.name) + '</h3>'
+      +     '<div class="subline">' + esc(g.type || '未分类') + ' ｜ '
+      +       (g.year ? esc(g.year) + ' 年' : '年份未知') + ' ｜ 编号 ' + esc(g.code || '—') + '</div>'
+      +     '<dl class="kv">'
+      +       '<dt>推荐指数</dt><dd><span class="stars">' + stars(g.rating) + '</span> '
+      +         '<span style="color:var(--muted)">' + (Number(g.rating) || 0).toFixed(1) + '</span></dd>'
+      +       '<dt>本地状态</dt><dd><span class="chip static ' + statusClass(g.local_status) + '">'
+      +         esc(g.local_status || '未下载') + '</span></dd>'
+      +       '<dt>保存位置</dt><dd>' + esc(g.location || '—') + '</dd>'
+      +       '<dt>保存时间</dt><dd>' + esc((g.saved_at || '').slice(0, 16) || '—') + '</dd>'
+      +       '<dt>下载链接</dt><dd>' + link + '</dd>'
+      +     '</dl>'
+      +     '<div class="howto"><div class="label">使用方法</div>'
+      +       '<div class="text">' + esc(g.how_to || '暂无') + '</div></div>'
+      +     '<div class="dlg-foot">'
+      +       '<button class="btn" data-close>关闭</button>'
+      +       '<button class="btn" id="dEdit">修改</button>'
+      +       '<button class="btn danger" id="dDel">删除</button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
+    openMask();
+    bindClose();
+    $('#dEdit').onclick = () => openEdit(g);
+    $('#dDel').onclick = () => delGame(g.id, g.name);
+  } catch (e) {
+    if (e.message !== '未登录') toast(e.message, 'error');
+  }
+}
+
+/* ------------------------------ 新增 / 编辑 ------------------------------ */
+async function openEditById(id){
+  try {
+    openEdit(await api('/api/games/' + id));
+  } catch (e) {
+    if (e.message !== '未登录') toast(e.message, 'error');
+  }
+}
+
+function openEdit(g){
+  g = g || {};
+  state.editId = g.id || null;
+  state.editCover = g.cover || '';
+  const isEdit = !!g.id;
+
+  dlg.innerHTML =
+    '<div class="dlg-head"><h2>' + (isEdit ? '编辑游戏' : '新增游戏') + '</h2>'
+    + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
+    + '<form class="form" id="editForm">'
+    +   '<label class="f">游戏名 <span class="req">*</span>'
+    +     '<input id="fName" name="name" maxlength="200" required autocomplete="off" '
+    +       'value="' + esc(g.name || '') + '" placeholder="例如：塞尔达传说：王国之泪"></label>'
+    +   '<label class="f">游戏类型'
+    +     '<input name="type" maxlength="60" list="typeList" value="' + esc(g.type || '') + '" placeholder="RPG / 动作 / 冒险…"></label>'
+    +   '<label class="f">游戏编号'
+    +     '<input name="code" maxlength="80" value="' + esc(g.code || '') + '" placeholder="唯一编号，可留空"></label>'
+    +   '<label class="f">游戏年份'
+    +     '<input name="year" type="number" min="1970" max="2100" value="' + esc(g.year ?? '') + '" placeholder="2023"></label>'
+    +   '<label class="f">保存时间'
+    +     '<input name="saved_at" type="datetime-local" value="' + toLocal(g.saved_at) + '"></label>'
+    +   '<label class="f">推荐指数（0–5）'
+    +     '<input name="rating" type="number" min="0" max="5" step="0.5" value="' + esc(g.rating ?? '') + '" placeholder="4.5"></label>'
+    +   '<label class="f">本地状态'
+    +     '<input name="local_status" list="statusList" maxlength="30" value="' + esc(g.local_status || '未下载') + '"></label>'
+    +   '<label class="f">保存位置'
+    +     '<input name="location" maxlength="200" value="' + esc(g.location || '') + '" placeholder="D:\\\\Games\\\\Zelda"></label>'
+    +   '<label class="f full">下载链接'
+    +     '<input name="download_url" maxlength="500" value="' + esc(g.download_url || '') + '" placeholder="https://…"></label>'
+    +   '<label class="f full">使用方法'
+    +     '<textarea name="how_to" rows="3" placeholder="解压密码 / 安装步骤 / 注意事项…">' + esc(g.how_to || '') + '</textarea></label>'
+    +   '<div class="f full">游戏图片'
+    +     '<div class="cover-row">'
+    +       '<div class="cover-preview" id="coverPrev"></div>'
+    +       '<div class="cover-side">'
+    +         '<label class="f">图片文件名或 URL'
+    +           '<input name="cover" id="coverInput" maxlength="500" value="' + esc(g.cover || '') + '" '
+    +             'placeholder="上传后自动填入，也可粘贴 https://…"></label>'
+    +         '<div class="cover-actions">'
+    +           '<button type="button" class="btn" id="btnUpload">⬆ 上传图片</button>'
+    +           '<button type="button" class="btn" id="btnClearCover">清除</button>'
+    +         '</div>'
+    +         '<span class="tiny">支持 jpg / png / webp，自动压缩到长边 1200px</span>'
+    +         '<input type="file" id="coverFile" accept="image/*" hidden>'
+    +       '</div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="dupHint" id="dupHint"></div>'
+    +   '<div class="dlg-foot" style="grid-column:1/-1">'
+    +     '<button type="button" class="btn" data-close>取消</button>'
+    +     '<button type="submit" class="btn primary" id="eSave">保存</button>'
+    +   '</div>'
+    + '</form>';
+
+  openMask();
+  bindClose();
+  renderCoverPreview(state.editCover);
+
+  $('#coverInput').addEventListener('input', e => {
+    state.editCover = e.target.value;
+    renderCoverPreview(state.editCover);
+  });
+  $('#btnUpload').onclick = () => $('#coverFile').click();
+  $('#coverFile').onchange = uploadCover;
+  $('#btnClearCover').onclick = () => {
+    $('#coverInput').value = '';
+    state.editCover = '';
+    renderCoverPreview('');
+  };
+  $('#editForm').addEventListener('submit', e => { e.preventDefault(); saveGame(); });
+
+  const nameEl = $('#fName');
+  nameEl.focus();
+  nameEl.addEventListener('blur', () => checkDup(nameEl.value.trim()));
+  nameEl.addEventListener('input', () => {
+    clearTimeout(dupTimer);
+    const v = nameEl.value.trim();
+    dupTimer = setTimeout(() => checkDup(v), 500);
+  });
+}
+
+function renderCoverPreview(v){
+  const el = $('#coverPrev');
+  if (!el) return;
+  const src = !v ? '' : (/^https?:\/\//i.test(v) ? v : '/images/' + encodeURIComponent(v));
+  el.innerHTML = '<div class="ph">🎮</div>'
+    + (src ? '<img src="' + esc(src) + '" alt="封面预览" onerror="this.remove()">' : '');
+}
+
+async function uploadCover(e){
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const btn = $('#btnUpload');
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '上传中…';
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const d = await api('/api/upload', { method: 'POST', body: fd });
+    const input = $('#coverInput');
+    if (input) input.value = d.filename;
+    state.editCover = d.filename;
+    renderCoverPreview(d.filename);
+    toast('封面已上传', 'ok');
+  } catch (err) {
+    toast(err.message || '上传失败', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+    e.target.value = '';
+  }
+}
+
+async function checkDup(name){
+  const hint = $('#dupHint');
+  if (!hint) return;
+  if (!name){ hint.innerHTML = ''; return; }
+  try {
+    const rows = await api('/api/games?q=' + encodeURIComponent(name));
+    const others = rows.filter(r => r.id !== state.editId);
+    const strong = others.filter(r => (r.score || 0) >= 0.85);
+    const weak = others.filter(r => (r.score || 0) >= 0.6 && (r.score || 0) < 0.85);
+    let html = '';
+    if (strong.length){
+      html = '<div class="dup">⚠ 库中已有高度相似条目：<b>'
+        + strong.slice(0, 5).map(r => esc(r.name)).join(' / ')
+        + '</b>，保存时会再次确认。</div>';
+    } else if (weak.length){
+      html = '<div class="dup similar">库中有相似条目：'
+        + weak.slice(0, 5).map(r => esc(r.name)).join(' / ') + '</div>';
+    }
+    const el = $('#dupHint');
+    if (el) el.innerHTML = html;
+  } catch (e) { /* 提示失败不影响编辑 */ }
+}
+
+async function saveGame(){
+  const form = $('#editForm');
+  if (!form) return;
+  if (!form.reportValidity()) return;
+
+  const body = Object.fromEntries(new FormData(form).entries());
+  body.force = false;
+  const url = state.editId ? ('/api/games/' + state.editId) : '/api/games';
+  const method = state.editId ? 'PUT' : 'POST';
+  const btn = $('#eSave');
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = '保存中…';
+
+  try {
+    let r = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (r.status === 401){ location.href = '/login'; return; }
+    let d = {};
+    try { d = await r.json(); } catch (e) {}
+
+    if (r.status === 409 && d && d.candidates && d.candidates.length){
+      const names = d.candidates
+        .map(c => c.name + '（' + Math.round((c.score || 0) * 100) + '%）')
+        .join('\n');
+      if (!confirm('库中已有高度相似的条目：\n\n' + names + '\n\n仍要保存吗？')) return;
+      body.force = true;
+      r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (r.status === 401){ location.href = '/login'; return; }
+      d = {};
+      try { d = await r.json(); } catch (e) {}
+    }
+
+    if (!r.ok){
+      toast(d.detail || d.reason || ('保存失败（' + r.status + '）'), 'error');
+      return;
+    }
+
+    const wasEdit = !!state.editId;
+    closeDlg();
+    load();
+    if (d.warnings && d.warnings.length){
+      toast('已保存。库中还有相似条目：' + d.warnings.map(w => w.name).join('、'), 'warn', 5000);
+    } else {
+      toast(wasEdit ? '已保存修改' : '已新增游戏', 'ok');
+    }
+  } catch (e) {
+    toast(e.message || '网络错误', 'error');
+  } finally {
+    if (btn.isConnected){
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
+}
+
+async function delGame(id, name){
+  if (!confirm('确定删除「' + (name || '该游戏') + '」？此操作不可撤销。')) return;
+  try {
+    await api('/api/games/' + id, { method: 'DELETE' });
+    closeDlg();
+    load();
+    toast('已删除', 'ok');
+  } catch (e) {
+    if (e.message !== '未登录') toast(e.message, 'error');
+  }
+}
+
+/* ------------------------------ 全库查重 ------------------------------ */
+async function openDuplicates(){
+  openMask();
+  dlg.innerHTML =
+    '<div class="dlg-head"><h2>全库查重</h2>'
+    + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
+    + '<div class="empty small">正在比对…</div>';
+  bindClose();
+
+  try {
+    const groups = await api('/api/games/duplicates');
+    const body = groups.length
+      ? groups.map((g, i) =>
+          '<div class="dup-group">'
+          + '<div class="dup-title">第 ' + (i + 1) + ' 组 · ' + g.length + ' 条相似</div>'
+          + g.map(x =>
+              '<div class="dup-item" data-open="' + x.id + '">'
+              + '<span>' + esc(x.name) + '</span>'
+              + '<span class="pct">' + Math.round((x.score || 1) * 100) + '%</span>'
+              + '</div>').join('')
+          + '</div>').join('')
+      : '<div class="empty small"><div class="icon">✅</div><h3>没有发现重复条目</h3>'
+        + '<p>没有相似度 ≥ 85% 的游戏名，库很干净。</p></div>';
+
+    dlg.innerHTML =
+      '<div class="dlg-head"><h2>全库查重</h2>'
+      + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
+      + '<p class="hint">按游戏名归一化后的相似度分组，≥ 85% 视为强重复。点击条目可查看详情、修改或删除。</p>'
+      + '<div class="dup-list">' + body + '</div>'
+      + '<div class="dlg-foot"><button class="btn" data-close>关闭</button></div>';
+    bindClose();
+    dlg.querySelectorAll('[data-open]').forEach(el => {
+      el.onclick = () => openDetail(Number(el.dataset.open));
+    });
+  } catch (e) {
+    if (e.message !== '未登录') toast(e.message, 'error');
+    closeDlg();
+  }
+}
+
+/* ------------------------------ 导入 / 导出 ------------------------------ */
+function exportXlsx(){
+  location.href = '/api/export/excel';
+}
+
+function openImport(){
+  openMask();
+  dlg.innerHTML =
+    '<div class="dlg-head"><h2>导入 Excel</h2>'
+    + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
+    + '<p class="hint">表头需包含「游戏名」。封面支持三种来源：内嵌图片、文件名 + 图片压缩包、外链 URL。'
+    + ' 建议先「预检」，确认行数与重复情况后再执行。</p>'
+    + '<label class="f full">Excel 文件（.xlsx）'
+    +   '<input type="file" id="impXlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>'
+    + '<label class="f full">图片压缩包（可选，.zip）'
+    +   '<input type="file" id="impZip" accept=".zip,application/zip"></label>'
+    + '<div id="impResult"></div>'
+    + '<div class="dlg-foot">'
+    +   '<button type="button" class="btn" data-close>取消</button>'
+    +   '<button type="button" class="btn" id="impCheck">预检</button>'
+    +   '<button type="button" class="btn primary" id="impGo">执行导入</button>'
+    + '</div>';
+  bindClose();
+  $('#impCheck').onclick = () => doImport(true);
+  $('#impGo').onclick = () => doImport(false);
+}
+
+async function doImport(dry){
+  const file = $('#impXlsx').files[0];
+  if (!file){ toast('请先选择 xlsx 文件', 'warn'); return; }
+  const btn = dry ? $('#impCheck') : $('#impGo');
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = dry ? '预检中…' : '导入中…';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('dry_run', dry ? '1' : '0');
+  const zip = $('#impZip').files[0];
+  if (zip) fd.append('images_zip', zip);
+
+  try {
+    const r = await fetch('/api/import/excel', { method: 'POST', body: fd });
+    if (r.status === 401){ location.href = '/login'; return; }
+    let d = {};
+    try { d = await r.json(); } catch (e) {}
+    if (!r.ok){
+      toast(d.detail || ('导入失败（' + r.status + '）'), 'error');
+      return;
+    }
+    renderImportResult(d);
+    if (dry){
+      toast('预检完成：可导入 ' + d.inserted + ' 条', 'ok');
+    } else {
+      toast('导入完成：新增 ' + d.inserted + ' 条，跳过重复 ' + d.skipped_dup + ' 条，图片 ' + d.images + ' 张', 'ok', 6000);
+      load();
+    }
+  } catch (e) {
+    toast('网络错误，请重试', 'error');
+  } finally {
+    if (btn.isConnected){
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
+}
+
+function renderImportResult(d){
+  const box = $('#impResult');
+  if (!box) return;
+  const details = d.details || [];
+  const rows = details.slice(0, 200).map(x =>
+    '<tr><td>' + x.row + '</td><td>' + esc(x.name || '—') + '</td>'
+    + '<td>' + esc(x.status) + '</td></tr>').join('');
+  box.innerHTML =
+    '<div class="stats">'
+    + '<span>总计 <b>' + d.total + '</b></span>'
+    + '<span>' + (d.dry_run ? '可导入' : '已导入') + ' <b class="ok">' + d.inserted + '</b></span>'
+    + '<span>重复跳过 <b class="warn">' + d.skipped_dup + '</b></span>'
+    + '<span>无效 <b class="err">' + d.skipped_invalid + '</b></span>'
+    + '<span>图片 <b>' + d.images + '</b></span>'
+    + '</div>'
+    + '<details' + (details.length ? ' open' : '') + '>'
+    + '<summary>逐行明细（最多展示 200 条）</summary>'
+    + '<div class="table-wrap"><table><thead><tr><th>行</th><th>游戏名</th><th>结果</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div></details>';
+}
+
+/* ------------------------------ 登录态 / 初始化 ------------------------------ */
+async function logout(){
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) { /* 忽略 */ }
+  location.href = '/login';
+}
+
+$('#q').addEventListener('input', () => {
+  const v = $('#q').value;
+  $('#qClear').hidden = !v;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(load, 280);
+});
+$('#qClear').onclick = () => {
+  $('#q').value = '';
+  $('#qClear').hidden = true;
+  clearTimeout(searchTimer);
+  load();
+  $('#q').focus();
+};
+$('#btnAdd').onclick = () => openEdit();
+$('#btnDup').onclick = openDuplicates;
+$('#btnExport').onclick = exportXlsx;
+$('#btnImport').onclick = openImport;
+$('#btnLogout').onclick = logout;
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && mask.classList.contains('show')) closeDlg();
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (e.key === '/' && !typing && !mask.classList.contains('show')){
+    e.preventDefault();
+    $('#q').focus();
+  }
+});
+
+(async function boot(){
+  try {
+    const me = await api('/api/me');
+    $('#who').textContent = me.username;
+  } catch (e) {
+    return;
+  }
+  load();
+})();
+</script>
+</body>
+</html>

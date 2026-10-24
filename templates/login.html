@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 · 游戏库</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel-2:#1e222b;
+    --text:#e8eaed; --muted:#8b93a1; --line:#2a2f3a;
+    --accent:#5b8cff; --danger:#ef4444; --ok:#34d399;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; padding:24px; display:grid; place-items:center;
+    background:
+      radial-gradient(900px 520px at 18% -10%, #1c2c4d 0%, transparent 60%),
+      radial-gradient(700px 500px at 110% 110%, #2a1c3d 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font:15px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .box{
+    width:min(380px,100%); background:rgba(23,26,33,.92);
+    border:1px solid var(--line); border-radius:18px;
+    padding:34px 32px 28px; box-shadow:0 30px 70px #0009;
+    backdrop-filter:blur(10px);
+  }
+  .logo{
+    width:56px; height:56px; border-radius:16px; display:grid; place-items:center;
+    font-size:28px; margin-bottom:16px;
+    background:linear-gradient(145deg,#233a68,#16203a);
+    border:1px solid #33538f; box-shadow:0 8px 22px #5b8cff33;
+  }
+  h1{margin:0; font-size:21px; letter-spacing:.5px}
+  .sub{margin:6px 0 22px; color:var(--muted); font-size:13px}
+  label{display:block; font-size:12px; color:var(--muted); margin:14px 0 6px}
+  input{
+    width:100%; padding:11px 13px; border-radius:10px;
+    border:1px solid var(--line); background:var(--panel-2); color:var(--text);
+    font:inherit; outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  input:focus{border-color:var(--accent); box-shadow:0 0 0 3px #5b8cff26}
+  .wrap{position:relative}
+  .eye{
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    background:none; border:0; color:var(--muted); cursor:pointer;
+    font-size:14px; padding:6px 8px; border-radius:8px;
+  }
+  .eye:hover{color:var(--text); background:#ffffff0d}
+  button.go{
+    width:100%; margin-top:22px; padding:12px; border:0; border-radius:10px;
+    background:linear-gradient(180deg,#6b98ff,#4b7bf5); color:#fff;
+    font:600 15px/1 inherit; letter-spacing:2px; cursor:pointer;
+    transition:filter .15s, transform .05s;
+    box-shadow:0 10px 26px #4b7bf54d;
+  }
+  button.go:hover{filter:brightness(1.07)}
+  button.go:active{transform:translateY(1px)}
+  button.go:disabled{opacity:.65; cursor:default}
+  #msg{min-height:20px; margin-top:12px; font-size:13px; color:var(--danger); text-align:center}
+  .foot{margin-top:22px; text-align:center; color:#5f6877; font-size:12px}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">🎮</div>
+    <h1>游戏库登录</h1>
+    <p class="sub">本地优先的游戏资源管理器</p>
+
+    <form id="form" autocomplete="on">
+      <label for="u">用户名</label>
+      <input id="u" name="username" placeholder="admin" autocomplete="username" autofocus>
+      <label for="p">密码</label>
+      <div class="wrap">
+        <input id="p" name="password" type="password" placeholder="请输入密码"
+               autocomplete="current-password" style="padding-right:46px">
+        <button class="eye" id="eye" type="button" title="显示/隐藏密码"
+                aria-label="显示或隐藏密码">👁</button>
+      </div>
+      <button class="go" id="btn" type="submit">登 录</button>
+      <div id="msg" role="alert"></div>
+    </form>
+
+    <div class="foot">首次运行请查看 data/初始密码.txt</div>
+  </div>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const btn = $('#btn'), msg = $('#msg');
+
+  $('#eye').onclick = () => {
+    const p = $('#p');
+    const show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    $('#eye').textContent = show ? '🙈' : '👁';
+  };
+
+  async function login() {
+    msg.textContent = '';
+    const username = $('#u').value.trim();
+    const password = $('#p').value;
+    if (!username || !password) { msg.textContent = '请输入用户名和密码'; return; }
+
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = '登录中…';
+    try {
+      const r = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (r.ok) { location.href = '/'; return; }
+      let data = {};
+      try { data = await r.json(); } catch (e) {}
+      msg.textContent = data.detail || ('登录失败（' + r.status + '）');
+    } catch (e) {
+      msg.textContent = '网络错误，请确认程序仍在运行';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
+
+  $('#form').addEventListener('submit', e => { e.preventDefault(); login(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 运行时数据（★重要：不要提交用户数据）
+data/*
+!data/.gitkeep
+
+# 打包产物
+build/
+dist/
+*.spec.bak
+
+# 测试缓存
+.pytest_cache/
+
+# 需求附件（仅本地保留，已归档为 docs/architecture.png）
+file_*.png
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 临时
+*.log
+*.db-journal
