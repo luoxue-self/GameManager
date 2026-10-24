@@ -210,11 +210,25 @@ def _inline_images(ws) -> dict[int, bytes]:
     return out
 
 
+def _remove_image(img_dir: str, filename: str) -> None:
+    if filename and not filename.startswith(("http://", "https://")):
+        try:
+            os.remove(os.path.join(img_dir, filename))
+        except OSError:
+            pass
+
+
 def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
                 zip_images: dict | None = None,
                 dry_run: bool = True,
-                dup_threshold: float = 0.85) -> dict:
-    """把 xlsx 导入 games 表。dry_run=True 时只预检、不写库不落图。"""
+                dup_threshold: float = 0.85,
+                on_dup: str = "skip") -> dict:
+    """把 xlsx 导入 games 表。
+
+    dry_run=True  只预检，不写库、不落图。
+    on_dup="skip" 重复条目跳过（默认）；"update" 覆盖已有条目（保留旧封面）。
+    """
+    on_dup = "update" if on_dup == "update" else "skip"
     wb = load_workbook(io.BytesIO(xlsx_bytes))
     ws, header_row, header = None, 0, {}
     for sheet in wb.worksheets:  # 优先找含「游戏名」表头的工作表
@@ -231,9 +245,10 @@ def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
 
     existing = [(r["id"], r["name"], r["name_norm"])
                 for r in con.execute("SELECT id,name,name_norm FROM games")]
-    stats = {"total": 0, "inserted": 0, "skipped_dup": 0,
+    stats = {"total": 0, "inserted": 0, "updated": 0, "skipped_dup": 0,
              "skipped_invalid": 0, "images": 0, "details": []}
     batch: list[dict] = []
+    touched: set[int] = set()
 
     for r in range(header_row + 1, ws.max_row + 1):
         data = {}
@@ -250,40 +265,49 @@ def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
             continue
 
         norm = dedup.normalize(name)
-        hit = None
+        hit_id = hit_name = None
         for gid, gname, gnorm in existing:
             if gnorm == norm or dedup.similarity(norm, gnorm) >= dup_threshold:
-                hit = (gid, gname)
+                hit_id, hit_name = gid, gname
                 break
-        if not hit:
+        if hit_id is None:
             for b in batch:
                 if b["name_norm"] == norm or \
                         dedup.similarity(norm, b["name_norm"]) >= dup_threshold:
-                    hit = (None, b["name"] + "（本表内）")
+                    hit_name = b["name"] + "（本表内）"
                     break
-        if hit:
+
+        # 不能安全更新：本表内重复，或本次导入已经更新过同一条，或策略为跳过
+        if hit_name and (hit_id is None or on_dup != "update" or hit_id in touched):
             stats["skipped_dup"] += 1
-            stats["details"].append({"row": r, "name": name,
-                                     "status": f"疑似重复 → {hit[1]}"})
+            status = f"疑似重复 → {hit_name}"
+            if hit_id in touched:
+                status = "本表内重复出现，已跳过"
+            stats["details"].append({"row": r, "name": name, "status": status})
             continue
 
         cover = ""
+        saved_image = ""
         ref = data.get("cover", "")
         if r in inline_imgs:
             cover = "（内嵌）"
             if not dry_run:
                 cover = save_image_bytes(inline_imgs[r], img_dir)
+                saved_image = cover
             stats["images"] += 1
         elif ref and ref.lower() in zip_images:
             cover = "（zip）"
             if not dry_run:
                 cover = save_image_bytes(zip_images[ref.lower()], img_dir)
+                saved_image = cover
             stats["images"] += 1
         elif ref.startswith(("http://", "https://")):
             cover = ref
 
+        py_full, py_ini = dedup.pinyin(name)
         rec = {
-            "name": name, "name_norm": norm, "name_pinyin": "",
+            "name": name, "name_norm": norm,
+            "name_pinyin": py_full, "name_initials": py_ini,
             "type": data.get("type", ""), "code": data.get("code") or None,
             "cover": cover, "saved_at": data.get("saved_at") or None,
             "download_url": data.get("download_url", ""),
@@ -293,8 +317,45 @@ def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
             "year": _int(data.get("year")),
             "location": data.get("location", ""),
         }
-        batch.append(rec)
 
+        # ---------- 覆盖已有条目 ----------
+        if hit_id is not None and on_dup == "update":
+            touched.add(hit_id)
+            if dry_run:
+                stats["updated"] += 1
+                stats["details"].append({"row": r, "name": name,
+                                         "status": "将更新（预检）"})
+                continue
+            old = con.execute("SELECT cover, saved_at FROM games WHERE id=?",
+                              (hit_id,)).fetchone()
+            if old is not None:
+                rec["cover"] = rec["cover"] or (old["cover"] or "")
+                rec["saved_at"] = rec["saved_at"] or old["saved_at"]
+                try:
+                    con.execute(
+                        """UPDATE games SET name=?,name_norm=?,name_pinyin=?,
+                           name_initials=?,type=?,code=?,cover=?,saved_at=?,
+                           download_url=?,how_to=?,rating=?,local_status=?,
+                           year=?,location=? WHERE id=?""",
+                        (rec["name"], rec["name_norm"], rec["name_pinyin"],
+                         rec["name_initials"], rec["type"], rec["code"],
+                         rec["cover"], rec["saved_at"], rec["download_url"],
+                         rec["how_to"], rec["rating"], rec["local_status"],
+                         rec["year"], rec["location"], hit_id))
+                    stats["updated"] += 1
+                    stats["details"].append({"row": r, "name": name,
+                                             "status": "已更新"})
+                except Exception as e:
+                    stats["skipped_invalid"] += 1
+                    msg = ("编号已存在" if "UNIQUE" in str(e).upper()
+                           else f"更新失败:{e}")
+                    stats["details"].append({"row": r, "name": name,
+                                             "status": msg})
+                    _remove_image(img_dir, saved_image)
+                continue
+
+        # ---------- 新增 ----------
+        batch.append(rec)
         if dry_run:
             stats["inserted"] += 1
             stats["details"].append({"row": r, "name": name,
@@ -302,12 +363,14 @@ def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
             continue
         try:
             con.execute(
-                """INSERT INTO games(name,name_norm,name_pinyin,type,code,
-                   cover,saved_at,download_url,how_to,rating,local_status,year,location)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (rec["name"], rec["name_norm"], rec["name_pinyin"], rec["type"],
-                 rec["code"], rec["cover"], rec["saved_at"], rec["download_url"],
-                 rec["how_to"], rec["rating"], rec["local_status"], rec["year"],
+                """INSERT INTO games(name,name_norm,name_pinyin,name_initials,
+                   type,code,cover,saved_at,download_url,how_to,rating,
+                   local_status,year,location)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (rec["name"], rec["name_norm"], rec["name_pinyin"],
+                 rec["name_initials"], rec["type"], rec["code"], rec["cover"],
+                 rec["saved_at"], rec["download_url"], rec["how_to"],
+                 rec["rating"], rec["local_status"], rec["year"],
                  rec["location"]))
             stats["inserted"] += 1
             stats["details"].append({"row": r, "name": name, "status": "已导入"})
@@ -315,15 +378,11 @@ def import_xlsx(xlsx_bytes: bytes, con, img_dir: str,
             stats["skipped_invalid"] += 1
             msg = "编号已存在" if "UNIQUE" in str(e).upper() else f"失败:{e}"
             stats["details"].append({"row": r, "name": name, "status": msg})
-            # 入库失败时清理刚落盘、已无人引用的封面文件
-            if rec["cover"] and not rec["cover"].startswith(("http://", "https://")):
-                try:
-                    os.remove(os.path.join(img_dir, rec["cover"]))
-                except OSError:
-                    pass
+            _remove_image(img_dir, saved_image)
 
     if not dry_run:
         con.commit()
     stats["ok"] = True
     stats["dry_run"] = dry_run
+    stats["on_dup"] = on_dup
     return stats

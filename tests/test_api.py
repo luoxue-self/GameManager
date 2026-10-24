@@ -1,4 +1,6 @@
 import io
+import secrets
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +35,8 @@ def test_anonymous_is_redirected_or_rejected():
         assert r.status_code in (302, 307)
         assert r.headers["location"] == "/login"
         assert c.get("/login").status_code == 200
+        # 封面图同样需要登录
+        assert c.get("/images/whatever.png").status_code == 401
 
 
 def test_wrong_password(client):
@@ -42,8 +46,11 @@ def test_wrong_password(client):
 
 
 def test_health(client):
-    body = client.get("/api/health").json()
+    r = client.get("/api/health")
+    body = r.json()
     assert body["ok"] is True
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["cache-control"] == "no-store"
 
 
 def test_full_crud_flow(client):
@@ -59,6 +66,12 @@ def test_full_crud_flow(client):
     })
     assert r.status_code == 200, r.text
     gid = r.json()["id"]
+
+    # 拼音全拼 / 首字母搜索
+    for query in ("saierda", "sedc", "sai er da"):
+        hits = client.get("/api/games", params={"q": query}).json()
+        assert any(h["name"] == "塞尔达传说：王国之泪"
+                   and h["score"] >= 0.9 for h in hits), query
 
     # 相似名字 → 拦截
     r = client.post("/api/games", json={"name": "塞尔达传说 王国之泪 中文版"})
@@ -87,7 +100,7 @@ def test_full_crud_flow(client):
     assert g["year"] == 2023 and g["rating"] == 5.0
     assert client.get("/api/games/999999").status_code == 404
 
-    # 上传封面 → 静态访问
+    # 上传封面 → 鉴权访问
     r = client.post("/api/upload",
                     files={"file": ("cover.png", _png(), "image/png")})
     assert r.status_code == 200, r.text
@@ -147,6 +160,77 @@ def test_full_crud_flow(client):
     assert client.get(f"/api/games/{gid}").status_code == 404
     assert client.delete(f"/api/games/{gid2}").status_code == 200
 
-    # 退出
-    assert client.post("/api/logout").status_code == 200
-    assert client.get("/api/games").status_code == 401
+
+def test_backup_zip(client):
+    for g in client.get("/api/games").json():
+        client.delete(f"/api/games/{g['id']}")
+
+    up = client.post("/api/upload",
+                     files={"file": ("c.png", _png((20, 160, 120)), "image/png")})
+    assert up.status_code == 200
+    filename = up.json()["filename"]
+    gid = client.post("/api/games",
+                      json={"name": "备份测试", "cover": filename}).json()["id"]
+
+    r = client.get("/api/backup")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/zip")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        names = set(z.namelist())
+        assert {"games.db", "README.txt"} <= names
+        assert f"images/{filename}" in names
+        assert "备份" in z.read("README.txt").decode("utf-8")
+
+    assert client.delete(f"/api/games/{gid}").status_code == 200
+
+
+def test_corrupt_excel_returns_400(client):
+    r = client.post("/api/import/excel",
+                    files={"file": ("bad.xlsx", b"this is not an xlsx",
+                                    "application/octet-stream")},
+                    data={"dry_run": "1"})
+    assert r.status_code == 400
+    assert "Excel" in r.json()["detail"]
+
+
+def test_password_change_flow():
+    username = "pwuser_" + secrets.token_hex(3)
+    con = db.connect()
+    con.execute("INSERT INTO users(username,password_hash,created_at) "
+                "VALUES(?,?,?)",
+                (username, db.hash_pw("old-pass-1"), "2024-01-01"))
+    con.commit()
+    con.close()
+
+    with TestClient(app) as c:
+        assert c.post("/api/login", json={
+            "username": username, "password": "old-pass-1"}).status_code == 200
+
+        # 旧密码错误 / 新密码过短
+        r = c.post("/api/password", json={
+            "old_password": "wrong", "new_password": "new-pass-1"})
+        assert r.status_code == 400
+        r = c.post("/api/password", json={
+            "old_password": "old-pass-1", "new_password": "123"})
+        assert r.status_code == 400
+
+        r = c.post("/api/password", json={
+            "old_password": "old-pass-1", "new_password": "new-pass-1"})
+        assert r.status_code == 200, r.text
+        # 当前会话仍有效
+        assert c.get("/api/me").status_code == 200
+
+        c.post("/api/logout")
+        assert c.post("/api/login", json={
+            "username": username, "password": "old-pass-1"}).status_code == 401
+        assert c.post("/api/login", json={
+            "username": username, "password": "new-pass-1"}).status_code == 200
+
+
+def test_logout_invalidates_session():
+    with TestClient(app) as c:
+        assert c.post("/api/login", json={
+            "username": "admin", "password": PASSWORD}).status_code == 200
+        assert c.get("/api/games").status_code == 200
+        assert c.post("/api/logout").status_code == 200
+        assert c.get("/api/games").status_code == 401

@@ -1,4 +1,29 @@
+import pytest
+
 import dedup
+
+
+def test_pinyin_conversion():
+    if not dedup.HAS_PINYIN:
+        pytest.skip("pypinyin 未安装")
+    full, initials = dedup.pinyin("塞尔达传说：王国之泪")
+    assert full == "saierdachuanshuowangguozhilei"
+    assert initials == "sedcswgzl"
+    assert dedup.pinyin("") == ("", "")
+    assert dedup.pinyin("Elden Ring") == ("eldenring", "eldenring")
+
+
+def test_search_score_supports_pinyin_and_initials():
+    row = {
+        "name_norm": dedup.normalize("塞尔达传说：王国之泪"),
+        "name_pinyin": "saierdachuanshuowangguozhilei",
+        "name_initials": "sedcswgzl",
+    }
+    assert dedup.search_score("saierda", row) >= 0.95
+    assert dedup.search_score("sedc", row) >= 0.92
+    assert dedup.search_score("sai er da", row) >= 0.95
+    assert dedup.search_score("王国之泪", row) >= 0.35
+    assert dedup.search_score("zzzz-no-such", row) == 0.0
 
 
 def test_normalize_example_from_spec():

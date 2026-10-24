@@ -116,6 +116,58 @@ def test_import_uses_sheet_with_name_header():
     con.close()
 
 
+def test_import_update_existing_mode():
+    from openpyxl import Workbook
+
+    con = _clear()
+    py_full, py_ini = dedup.pinyin("更新目标")
+    con.execute(
+        """INSERT INTO games(name,name_norm,name_pinyin,name_initials,type,
+           code,cover,saved_at,download_url,how_to,rating,local_status,year,location)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ("更新目标", dedup.normalize("更新目标"), py_full, py_ini, "旧类型",
+         "U1", "keep.jpg", "2024-01-01 00:00", "", "旧说明", 3,
+         "未下载", 2020, ""))
+    con.commit()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(excel_io.HEADERS)
+    ws.append(["更新目标", "新类型", "U1", "", "2024-02-02 10:00", "",
+               "新说明", "4.5", "已通关", "2021", "D:/new"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    data = buf.getvalue()
+
+    # 默认跳过
+    skip = excel_io.import_xlsx(data, con, db.IMG_DIR, dry_run=True)
+    assert skip["skipped_dup"] == 1 and skip["inserted"] == 0
+    assert skip["updated"] == 0
+
+    # 预检更新
+    dry = excel_io.import_xlsx(data, con, db.IMG_DIR, dry_run=True,
+                               on_dup="update")
+    assert dry["updated"] == 1 and dry["inserted"] == 0
+
+    # 正式更新
+    res = excel_io.import_xlsx(data, con, db.IMG_DIR, dry_run=False,
+                               on_dup="update")
+    assert res["updated"] == 1 and res["inserted"] == 0
+    assert res["on_dup"] == "update"
+
+    row = con.execute("SELECT * FROM games").fetchone()
+    assert row["type"] == "新类型" and row["how_to"] == "新说明"
+    assert row["local_status"] == "已通关" and row["year"] == 2021
+    assert row["rating"] == 4.5
+    assert row["cover"] == "keep.jpg"          # 新表没有图片，保留旧封面
+    assert row["name_pinyin"] == py_full
+    assert row["name_initials"] == py_ini
+
+    con.execute("DELETE FROM games")
+    con.commit()
+    con.close()
+
+
 def test_import_matches_zip_image_by_filename():
     from openpyxl import Workbook
     wb = Workbook()

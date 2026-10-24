@@ -8,9 +8,12 @@ from __future__ import annotations
 import io
 import os
 import secrets
+import shutil
 import sqlite3
 import sys
+import tempfile
 import time
+import traceback
 import zipfile
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -20,9 +23,9 @@ from fastapi import (Depends, FastAPI, File, Form, HTTPException, Request,
                      UploadFile)
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                RedirectResponse, StreamingResponse)
-from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from PIL import Image as PILImage
+from starlette.background import BackgroundTask
 
 import db
 import dedup
@@ -74,13 +77,48 @@ SESSION_DAYS = 7
 async def lifespan(_app: FastAPI):
     os.makedirs(db.IMG_DIR, exist_ok=True)
     db.ensure_admin()
+    _backfill_pinyin()
     yield
 
 
-app = FastAPI(title="游戏库", version="1.0.0", lifespan=lifespan)
+def _backfill_pinyin() -> int:
+    """给老数据的 name_pinyin / name_initials 补值（一次性迁移）。"""
+    if not dedup.HAS_PINYIN:
+        return 0
+    con = db.connect()
+    try:
+        rows = con.execute(
+            "SELECT id,name FROM games WHERE "
+            "name_pinyin IS NULL OR name_pinyin='' OR "
+            "name_initials IS NULL OR name_initials=''").fetchall()
+        for row in rows:
+            full, initials = dedup.pinyin(row["name"])
+            con.execute("UPDATE games SET name_pinyin=?, name_initials=? "
+                        "WHERE id=?", (full, initials, row["id"]))
+        if rows:
+            con.commit()
+        return len(rows)
+    finally:
+        con.close()
+
+
+app = FastAPI(title="游戏库", version="1.1.0", lifespan=lifespan)
 os.makedirs(db.IMG_DIR, exist_ok=True)
-app.mount("/images", StaticFiles(directory=db.IMG_DIR, check_dir=False),
-          name="images")
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if "x-content-type-options" not in response.headers:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+    if "x-frame-options" not in response.headers:
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    if "referrer-policy" not in response.headers:
+        response.headers["Referrer-Policy"] = "same-origin"
+    if request.url.path.startswith("/api/") and \
+            "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ---------------------------------------------------------------- 认证
@@ -100,6 +138,18 @@ def current_user(request: Request) -> str:
     if not user:
         raise HTTPException(401, "未登录")
     return user
+
+
+@app.get("/images/{filename}")
+def game_image(filename: str, user: str = Depends(current_user)):
+    """封面图也走登录鉴权（原来是公开的 StaticFiles）。"""
+    if not filename or filename != os.path.basename(filename) \
+            or filename.startswith("."):
+        raise HTTPException(404, "图片不存在")
+    path = os.path.join(db.IMG_DIR, filename)
+    if not os.path.isfile(path):
+        raise HTTPException(404, "图片不存在")
+    return FileResponse(path, headers={"Cache-Control": "private, max-age=86400"})
 
 
 _fails: dict[str, list] = {}
@@ -163,7 +213,31 @@ def logout():
 
 @app.get("/api/me")
 def me(user: str = Depends(current_user)):
-    return {"ok": True, "username": user}
+    return {"ok": True, "username": user, "version": app.version}
+
+
+@app.post("/api/password")
+async def change_password(request: Request, user: str = Depends(current_user)):
+    body = await _json_body(request)
+    old = str(body.get("old_password") or "")
+    new = str(body.get("new_password") or "")
+    if len(new) < 6:
+        raise HTTPException(400, "新密码至少 6 位")
+    if new == old:
+        raise HTTPException(400, "新密码不能与当前密码相同")
+
+    con = db.connect()
+    try:
+        row = con.execute("SELECT * FROM users WHERE username=?",
+                          (user,)).fetchone()
+        if not row or not db.verify_pw(old, row["password_hash"]):
+            raise HTTPException(400, "当前密码不正确")
+        con.execute("UPDATE users SET password_hash=? WHERE id=?",
+                    (db.hash_pw(new), row["id"]))
+        con.commit()
+    finally:
+        con.close()
+    return {"ok": True}
 
 
 @app.get("/api/health")
@@ -208,12 +282,9 @@ def list_games(q: str = "", user: str = Depends(current_user)):
     con = db.connect()
     try:
         if q.strip():
-            qn = dedup.normalize(q) or q.strip().lower()
             out = []
             for row in con.execute("SELECT * FROM games"):
-                score = dedup.similarity(qn, row["name_norm"] or "")
-                if qn in (row["name_norm"] or ""):
-                    score = max(score, 0.9)
+                score = dedup.search_score(q, row)
                 if score >= 0.35:
                     out.append({**dict(row), "score": score})
             out.sort(key=lambda x: -x["score"])
@@ -344,6 +415,7 @@ async def add_game(request: Request, user: str = Depends(current_user)):
     if not rec["name"]:
         raise HTTPException(400, "游戏名不能为空")
     norm = dedup.normalize(rec["name"])
+    py_full, py_ini = dedup.pinyin(rec["name"])
 
     con = db.connect()
     try:
@@ -352,13 +424,14 @@ async def add_game(request: Request, user: str = Depends(current_user)):
             return _dup_response(strong)
         try:
             cur = con.execute(
-                """INSERT INTO games(name,name_norm,type,code,cover,saved_at,
-                   download_url,how_to,rating,local_status,year,location)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (rec["name"], norm, rec["type"], rec["code"], rec["cover"],
-                 rec["saved_at"] or db.now_str(), rec["download_url"],
-                 rec["how_to"], rec["rating"], rec["local_status"],
-                 rec["year"], rec["location"]))
+                """INSERT INTO games(name,name_norm,name_pinyin,name_initials,
+                   type,code,cover,saved_at,download_url,how_to,rating,
+                   local_status,year,location)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (rec["name"], norm, py_full, py_ini, rec["type"], rec["code"],
+                 rec["cover"], rec["saved_at"] or db.now_str(),
+                 rec["download_url"], rec["how_to"], rec["rating"],
+                 rec["local_status"], rec["year"], rec["location"]))
             con.commit()
         except sqlite3.IntegrityError:
             con.rollback()
@@ -395,6 +468,7 @@ async def update_game(gid: int, request: Request,
         if not rec["name"]:
             raise HTTPException(400, "游戏名不能为空")
         norm = dedup.normalize(rec["name"])
+        py_full, py_ini = dedup.pinyin(rec["name"])
 
         # 修改时只提示相似条目，不阻塞（否则改个说明都要弹确认框）
         strong, weak = _candidates(con, norm, exclude_id=gid)
@@ -402,13 +476,14 @@ async def update_game(gid: int, request: Request,
                     for c in (strong + weak)[:5]]
         try:
             con.execute(
-                """UPDATE games SET name=?,name_norm=?,type=?,code=?,cover=?,
-                   saved_at=?,download_url=?,how_to=?,rating=?,local_status=?,
-                   year=?,location=? WHERE id=?""",
-                (rec["name"], norm, rec["type"], rec["code"], rec["cover"],
-                 rec["saved_at"] or old["saved_at"], rec["download_url"],
-                 rec["how_to"], rec["rating"], rec["local_status"],
-                 rec["year"], rec["location"], gid))
+                """UPDATE games SET name=?,name_norm=?,name_pinyin=?,
+                   name_initials=?,type=?,code=?,cover=?,saved_at=?,
+                   download_url=?,how_to=?,rating=?,local_status=?,year=?,
+                   location=? WHERE id=?""",
+                (rec["name"], norm, py_full, py_ini, rec["type"], rec["code"],
+                 rec["cover"], rec["saved_at"] or old["saved_at"],
+                 rec["download_url"], rec["how_to"], rec["rating"],
+                 rec["local_status"], rec["year"], rec["location"], gid))
             con.commit()
         except sqlite3.IntegrityError:
             con.rollback()
@@ -490,6 +565,44 @@ def export_excel(user: str = Depends(current_user)):
                  "Content-Length": str(buf.getbuffer().nbytes)})
 
 
+# ---------------------------------------------------------------- 备份
+@app.get("/api/backup")
+def backup_data(user: str = Depends(current_user)):
+    """把 games.db + images/ 打成 zip（用 SQLite backup API 保证快照一致）。"""
+    tmpdir = tempfile.mkdtemp(prefix="gm-backup-")
+    db_copy = os.path.join(tmpdir, "games.db")
+    zip_path = os.path.join(tmpdir, "backup.zip")
+    try:
+        con = db.connect()
+        dst = sqlite3.connect(db_copy)
+        try:
+            con.backup(dst)
+        finally:
+            dst.close()
+            con.close()
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(db_copy, "games.db")
+            if os.path.isdir(db.IMG_DIR):
+                for name in sorted(os.listdir(db.IMG_DIR)):
+                    path = os.path.join(db.IMG_DIR, name)
+                    if os.path.isfile(path):
+                        z.write(path, f"images/{name}")
+            z.writestr(
+                "README.txt",
+                "游戏库管理器数据备份\n\n"
+                "恢复方法：关闭程序，把本压缩包里的 games.db 和 images/\n"
+                "覆盖到程序同级的 data/ 目录后重新启动。\n")
+    except Exception as e:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise HTTPException(500, f"备份失败：{e}")
+
+    filename = f"game-manager-backup_{datetime.now():%Y%m%d_%H%M}.zip"
+    return FileResponse(zip_path, media_type="application/zip",
+                        filename=filename,
+                        background=BackgroundTask(shutil.rmtree, tmpdir, True))
+
+
 # ---------------------------------------------------------------- 导入
 def _read_zip(raw: bytes) -> dict:
     out: dict[str, bytes] = {}
@@ -516,12 +629,16 @@ def _read_zip(raw: bytes) -> dict:
 async def import_excel(file: UploadFile = File(...),
                        images_zip: UploadFile | None = File(None),
                        dry_run: int = Form(1),
+                       on_dup: str = Form("skip"),
                        user: str = Depends(current_user)):
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "空文件")
     if len(raw) > MAX_XLSX:
         raise HTTPException(413, "文件过大（限 30MB）")
+    on_dup = (on_dup or "skip").strip().lower()
+    if on_dup not in ("skip", "update"):
+        raise HTTPException(400, "on_dup 只能是 skip 或 update")
 
     zip_imgs: dict = {}
     if images_zip is not None and images_zip.filename:
@@ -537,7 +654,11 @@ async def import_excel(file: UploadFile = File(...),
     try:
         result = excel_io.import_xlsx(raw, con, db.IMG_DIR,
                                       zip_images=zip_imgs,
-                                      dry_run=bool(int(dry_run)))
+                                      dry_run=bool(int(dry_run)),
+                                      on_dup=on_dup)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(400, f"无法解析 Excel 文件：{e}")
     finally:
         con.close()
     if not result.get("ok"):

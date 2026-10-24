@@ -11,20 +11,25 @@
 |---|---|
 | 完整字段维护 | 游戏名、类型、编号、图片、保存时间、下载链接、使用方法、推荐指数、本地状态、游戏年份、保存位置 |
 | 模糊搜索 | 顶部搜索栏，按归一化 + 相似度排序，「王国之泪」能搜到「塞尔达传说：王国之泪」 |
+| 拼音搜索 | 支持全拼与首字母：`saierda`、`sai er da`、`sedc` 都能命中「塞尔达传说」 |
 | 相似去重 | 名称归一化 + 相似度打分：≥85% 保存时拦截确认，60%–85% 仅提示 |
 | 卡片 → 详情 | 点击卡片查看全部字段，详情内可直接修改 / 删除 |
-| 封面图片 | 支持本地上传（自动压缩到长边 1200px）、图片 URL、文件名 |
+| 筛选排序 | 按本地状态筛选，按最新添加 / 名称 / 评分 / 年份排序（浏览器会记住排序方式） |
+| 封面图片 | 支持本地上传（自动压缩到长边 1200px）、图片 URL、文件名；图片需登录后访问 |
 | Excel 导出 | 图片作为浮动对象内嵌到「游戏图片」列，可直接在 WPS / Excel 里看到 |
-| Excel 导入 | 支持内嵌图片、文件名 + zip 图片包、外链三种来源；先预检再入库 |
+| Excel 导入 | 支持内嵌图片、文件名 + zip 图片包、外链三种来源；先预检再入库，重复条目可「跳过」或「更新已有」 |
 | 全库查重 | 一键按 ≥85% 相似度分组，点击条目直达详情 |
-| 登录保护 | 账号密码 + scrypt 哈希 + itsdangerous 签名 Cookie；同一 IP 连续失败 8 次锁定 5 分钟 |
+| 账号安全 | scrypt 哈希 + 签名 Cookie；界面内可修改密码；同一 IP 连续失败 8 次锁定 5 分钟 |
+| 数据备份 | 一键下载包含 games.db 与全部封面的 zip，离线保存或迁移 |
 | 两种形态 | `desktop.py` 原生窗口（pywebview） / `app.py` 网页模式 |
 | 绿色便携 | 全部数据在 `data/`，整个文件夹拷贝即迁移 |
 
 <details>
-<summary>展开查看详情弹窗</summary>
+<summary>展开查看详情弹窗与「账号与数据」设置</summary>
 
 ![详情弹窗](docs/screenshot-detail.png)
+
+![账号与数据](docs/screenshot-settings.png)
 
 </details>
 
@@ -108,9 +113,11 @@ data/
 | B 文件名 | 写 `zelda.jpg`，同时选择 zip 图片包 | 按文件名匹配压缩包内图片 |
 | C 外链 | 写 `https://…` | 不下载，原样存库 |
 
-导入流程分两步：**预检**只统计不写库，确认后再执行。名称相似度 ≥85% 的行会被判重跳过。
+导入流程分两步：**预检**只统计不写库，确认后再执行。重复条目默认**跳过**，
+也可以在导入弹窗里切换为**更新已有条目**（覆盖字段、保留原封面），适合重新导入修订后的表格。
 
 > WPS 导出的 xlsx 偶尔出现图片锚点偏移。遇到错行时先用预检核对行号，或改用「文件名 + zip」方式。
+> 表头可以不在第一行（前 10 行内自动查找），工作簿里有多张表时会自动选含「游戏名」的那张。
 
 ## 🔌 API 一览
 
@@ -125,9 +132,12 @@ data/
 | POST | `/api/games` | 新增（高度相似会返回 409，可带 `force: true`） |
 | PUT | `/api/games/{id}` | 修改（只更新传入字段，相似仅提示） |
 | DELETE | `/api/games/{id}` | 删除（同时清理无人引用的封面） |
+| GET | `/images/{filename}` | 封面图（需登录） |
 | POST | `/api/upload` | 上传封面，返回文件名 |
+| POST | `/api/password` | 修改当前账号密码（需验证旧密码） |
+| GET | `/api/backup` | 下载数据备份 zip（games.db + images） |
 | GET | `/api/export/excel` | 导出 xlsx（含内嵌图片） |
-| POST | `/api/import/excel` | 导入 xlsx + 可选 zip 图片包 |
+| POST | `/api/import/excel` | 导入 xlsx + 可选 zip 图片包，支持 `on_dup=skip/update` |
 | GET | `/api/health` | 健康检查（桌面端等端口就绪用） |
 
 交互式文档：启动后访问 `http://127.0.0.1:8000/docs`。
@@ -138,6 +148,7 @@ data/
 |---|---|---|
 | 后端 | FastAPI + uvicorn | 异步、自带 OpenAPI，前后端一套 |
 | 数据库 | SQLite（标准库 sqlite3） | 零依赖、单文件、便携 |
+| 搜索 | pypinyin + 自研归一化/相似度 | 中文模糊匹配、拼音全拼与首字母 |
 | 桌面外壳 | pywebview | 复用 Web 前端，体积小 |
 | 打包 | PyInstaller（onedir） | 启动快、路径稳定 |
 | Excel | openpyxl + Pillow | 读写 xlsx、内嵌图片锚定 |
@@ -181,8 +192,9 @@ pip install pytest httpx
 python -m pytest -q
 ```
 
-覆盖：归一化 / 相似度阈值、管理员与表结构、编号唯一索引、Excel 导出→清库→导入往返（含内嵌图片）、
-zip 图片匹配、缺表头报错、登录鉴权、增删改查、409 判重、上传、查重、导出、导入预检。
+覆盖（24 个用例）：归一化 / 相似度阈值、拼音全拼与首字母、管理员与表结构、编号唯一索引、
+Excel 导出→清库→导入往返（含内嵌图片）、zip 图片匹配、分表表头、缺表头报错、导入更新模式、
+登录鉴权、图片鉴权、增删改查、409 判重、上传、查重、导出、导入预检、密码修改、数据备份、损坏 xlsx 报错、安全响应头。
 
 ## 🛠 目录结构
 
@@ -197,11 +209,13 @@ game-manager/
 │   ├── login.html
 │   └── index.html
 ├── assets/icon.ico
+├── docs/                      # 架构图与界面截图
 ├── tests/                     # pytest 用例
 ├── data/                      # 运行时数据（不进 Git）
 ├── pyinstaller.spec
 ├── build.py
 ├── requirements.txt
+├── LICENSE
 ├── .github/workflows/build.yml
 ├── IMPLEMENTATION.md          # 完整实现文档（按阶段）
 └── README.md
@@ -219,14 +233,38 @@ game-manager/
 PyInstaller 打包的 exe 常见误报，加白名单，或用源码自行打包。
 
 **Q：忘记管理员密码？**
-删除 `data/games.db` 中的 users 记录后重启会重新生成，或执行：
+如果还能进入界面：点右上角 ⚙ → 修改密码。
+完全忘记时，删除 `data/games.db` 中的 users 记录后重启会重新生成，或执行：
 ```bash
-python -c "import db; db.ensure_admin('admin','新密码')"
+python -c "import db; db.set_password('admin','新密码')"
 ```
+
+**Q：怎么备份 / 恢复到另一台电脑？**
+界面右上角 ⚙ → 「下载备份」，会得到一个包含 `games.db` 和全部封面的 zip。
+恢复时关闭程序，把 zip 里的 `games.db` 与 `images/` 覆盖到程序同级 `data/` 后重新启动。
+
+**Q：图片不显示，或直接打开 /images/… 提示未登录？**
+这是有意的：封面图也要求登录，只有当前浏览器会话能访问。重新登录即可。
 
 **Q：能直接在 macOS / Linux 用吗？**
 Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwebkit2gtk-4.1-dev`），
 桌面窗口依赖 `pywebview`，也可只用 `python app.py` 走浏览器。
+
+## 📝 更新日志
+
+### v1.1.0
+
+- 新增**拼音搜索**：全拼（`saierda`）、带空格全拼（`sai er da`）、首字母（`sedc`）都能命中；老数据启动时自动回填拼音
+- 新增**账号与数据**弹窗：修改密码、下载整库备份 zip；忘记密码不用再改数据库
+- 新增**筛选与排序**：按本地状态筛选，按最新添加 / 名称 / 评分 / 年份排序（排序方式本地记忆）
+- Excel 导入支持**更新已有条目**（保留原封面），预检与结果里分别统计「可更新 / 已更新」
+- 封面图片改为**登录后访问**，不再暴露公开静态目录；API 加 `no-store` 与常用安全响应头
+- 损坏 / 非 xlsx 文件返回可读的 400 提示，而不是 500
+- 测试扩充到 24 个，打包版重新验证登录、拼音搜索、备份与密码修改
+
+### v1.0.0
+
+- FastAPI + SQLite + pywebview 完整实现，含模糊搜索、相似去重、Excel 双向导入导出、桌面 exe 与 CI
 
 ## 📄 License
 

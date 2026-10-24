@@ -7,6 +7,7 @@ datas = [
     ("assets", "assets"),
 ]
 datas += collect_data_files("webview")
+datas += collect_data_files("pypinyin")
 
 hiddenimports = [
     "webview.platforms.edgechromium",
@@ -19,6 +20,7 @@ hiddenimports = [
 ]
 hiddenimports += collect_submodules("webview")
 hiddenimports += collect_submodules("uvicorn")
+hiddenimports += collect_submodules("pypinyin")
 
 a = Analysis(
     ["desktop.py"],

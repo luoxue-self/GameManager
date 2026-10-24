@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS games(
   name TEXT NOT NULL,
   name_norm TEXT NOT NULL,
   name_pinyin TEXT DEFAULT '',
+  name_initials TEXT DEFAULT '',
   type TEXT DEFAULT '',
   code TEXT,
   cover TEXT DEFAULT '',
@@ -47,6 +48,14 @@ CREATE INDEX IF NOT EXISTS ix_games_norm ON games(name_norm);
 """
 
 
+def _migrate(con: sqlite3.Connection) -> None:
+    """轻量迁移：老版本数据库补上新增列。"""
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(games)")}
+    if "name_initials" not in cols:
+        con.execute("ALTER TABLE games ADD COLUMN name_initials TEXT DEFAULT ''")
+        con.commit()
+
+
 def connect() -> sqlite3.Connection:
     """打开数据库连接（自动建库建表）。每次调用返回新连接，用完即弃。"""
     os.makedirs(IMG_DIR, exist_ok=True)
@@ -55,6 +64,7 @@ def connect() -> sqlite3.Connection:
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA foreign_keys=ON")
     con.executescript(SCHEMA)
+    _migrate(con)
     return con
 
 
@@ -117,6 +127,18 @@ def ensure_admin(username="admin", password=None):
 def now_str() -> str:
     """统一的时间字符串格式（与前端 datetime-local 相容）。"""
     return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def set_password(username: str, new_password: str) -> bool:
+    """修改密码；用户不存在返回 False。"""
+    con = connect()
+    try:
+        cur = con.execute("UPDATE users SET password_hash=? WHERE username=?",
+                          (hash_pw(new_password), username))
+        con.commit()
+        return cur.rowcount > 0
+    finally:
+        con.close()
 
 
 if __name__ == "__main__":

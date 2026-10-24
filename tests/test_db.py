@@ -24,10 +24,25 @@ def test_games_table_columns():
     con = db.connect()
     cols = {r["name"] for r in con.execute("PRAGMA table_info(games)")}
     con.close()
-    expected = {"name", "name_norm", "name_pinyin", "type", "code", "cover",
-                "saved_at", "download_url", "how_to", "rating",
-                "local_status", "year", "location", "dup_note"}
+    expected = {"name", "name_norm", "name_pinyin", "name_initials", "type",
+                "code", "cover", "saved_at", "download_url", "how_to",
+                "rating", "local_status", "year", "location", "dup_note"}
     assert expected <= cols
+
+
+def test_set_password():
+    import secrets
+    username = "pw_" + secrets.token_hex(3)
+    assert db.ensure_admin(username, "old-pass-1")
+    assert db.set_password(username, "new-pass-1") is True
+
+    con = db.connect()
+    row = con.execute("SELECT * FROM users WHERE username=?",
+                      (username,)).fetchone()
+    con.close()
+    assert db.verify_pw("new-pass-1", row["password_hash"])
+    assert not db.verify_pw("old-pass-1", row["password_hash"])
+    assert db.set_password("no-such-user-xyz", "whatever") is False
 
 
 def test_code_unique_index():

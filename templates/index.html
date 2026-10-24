@@ -10,6 +10,7 @@
     --text:#e8eaed; --muted:#8b93a1; --line:#2a2f3a;
     --accent:#5b8cff; --danger:#ef4444; --warn:#f5b942; --ok:#34d399;
     --radius:14px;
+    color-scheme:dark;
   }
   *{box-sizing:border-box}
   [hidden]{display:none !important}
@@ -51,8 +52,10 @@
   }
   .search .clear:hover{color:var(--text); background:#ffffff10}
   .tools{display:flex; gap:8px; flex-wrap:wrap}
-  .user{display:flex; align-items:center; gap:10px; margin-left:auto; color:var(--muted); font-size:13px}
+  .user{display:flex; align-items:center; gap:8px; margin-left:auto; color:var(--muted); font-size:13px}
   .user b{color:var(--text); font-weight:600}
+  .user .icon{font-size:17px; line-height:1}
+  .user .btn{padding:8px 13px}
   .btn{
     display:inline-flex; align-items:center; gap:6px; padding:9px 15px;
     border-radius:9px; border:1px solid var(--line); background:var(--panel);
@@ -75,6 +78,15 @@
     display:flex; align-items:center; justify-content:space-between; gap:14px;
     flex-wrap:wrap; margin-bottom:18px; color:var(--muted); font-size:13px;
   }
+  .bar-right{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-left:auto}
+  .filters{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .filters select{
+    padding:7px 11px; border-radius:9px; border:1px solid var(--line);
+    background:var(--panel); color:var(--text); font:inherit; font-size:12.5px;
+    cursor:pointer; outline:none; transition:.15s;
+  }
+  .filters select:hover{border-color:#39404e}
+  .filters select:focus{border-color:var(--accent); box-shadow:0 0 0 3px #5b8cff22}
   .keys{display:flex; gap:16px; flex-wrap:wrap}
   kbd{
     font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
@@ -151,6 +163,7 @@
   .empty .icon{font-size:44px; opacity:.5; margin-bottom:12px}
   .empty h3{margin:0 0 6px; color:var(--text); font-size:16px}
   .empty p{margin:0; font-size:13px}
+  .empty .btn{margin-top:16px}
   .empty.small{padding:26px 10px}
 
   /* ---------------- 弹窗 ---------------- */
@@ -176,6 +189,10 @@
   }
   .icon:hover{background:#ffffff10; color:var(--text)}
   .hint{margin:0 0 14px; color:var(--muted); font-size:12.5px; line-height:1.65}
+  .hint code, .settings-row code{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px;
+    padding:1px 5px; font-size:12px; color:#c9d4e8;
+  }
   .dlg-foot{display:flex; justify-content:flex-end; gap:10px; margin-top:22px; flex-wrap:wrap}
 
   .detail{display:grid; grid-template-columns:260px 1fr; gap:24px}
@@ -224,6 +241,12 @@
   .cover-actions{display:flex; gap:8px; flex-wrap:wrap}
   .cover-actions .btn{padding:8px 13px; font-size:12.5px}
   .tiny{font-size:11.5px; color:#5f6877}
+  .radio-row{display:flex; gap:18px; flex-wrap:wrap; padding-top:2px}
+  .radio{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text); cursor:pointer}
+  .radio input{width:auto; margin:0; accent-color:var(--accent)}
+  .sep{border:0; border-top:1px solid var(--line); margin:20px 0}
+  .settings-row{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .settings-row p{margin:4px 0 0; font-size:12px; color:var(--muted); line-height:1.6}
   .dupHint{grid-column:1/-1}
   .dup{
     background:#3a2a1a; border:1px solid #7f5a2a; color:#ffd9a8;
@@ -281,7 +304,7 @@
   <div class="brand"><span class="dot">🎮</span><span>游戏库</span></div>
   <div class="search">
     <span class="ico">⌕</span>
-    <input id="q" placeholder="搜索游戏名：模糊匹配、相似度排序…" autocomplete="off" spellcheck="false" aria-label="搜索游戏">
+    <input id="q" placeholder="搜索游戏名 / 拼音 / 首字母…" autocomplete="off" spellcheck="false" aria-label="搜索游戏">
     <button class="clear" id="qClear" type="button" title="清空搜索" hidden>✕</button>
   </div>
   <div class="tools">
@@ -292,6 +315,7 @@
   </div>
   <div class="user">
     <span>👤 <b id="who">…</b></span>
+    <button class="icon" id="btnSettings" type="button" title="账号与数据" aria-label="账号与数据">⚙</button>
     <button class="btn ghost" id="btnLogout" type="button">退出</button>
   </div>
 </header>
@@ -299,11 +323,23 @@
 <main>
   <div class="bar">
     <span id="count">加载中…</span>
-    <span class="keys">
-      <span><kbd>/</kbd> 搜索</span>
-      <span><kbd>Esc</kbd> 关闭弹窗</span>
-      <span>点击卡片查看详情</span>
-    </span>
+    <div class="bar-right">
+      <div class="filters">
+        <select id="fStatus" aria-label="按本地状态筛选">
+          <option value="">全部状态</option>
+        </select>
+        <select id="fSort" aria-label="排序方式">
+          <option value="new">最新添加</option>
+          <option value="name">名称 A→Z</option>
+          <option value="rating">评分从高到低</option>
+          <option value="year">年份从新到旧</option>
+        </select>
+      </div>
+      <span class="keys">
+        <span><kbd>/</kbd> 搜索</span>
+        <span><kbd>Esc</kbd> 关闭弹窗</span>
+      </span>
+    </div>
   </div>
 
   <section class="grid" id="grid" aria-live="polite"></section>
@@ -311,6 +347,7 @@
     <div class="icon">🎮</div>
     <h3 id="emptyTitle">游戏库还是空的</h3>
     <p id="emptyDesc">点击右上角「＋ 新增」开始建立你的游戏库</p>
+    <button class="btn" id="emptyReset" type="button" hidden>清空筛选</button>
   </section>
 </main>
 
@@ -336,7 +373,10 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const grid = $('#grid'), empty = $('#empty'), mask = $('#mask'), dlg = $('#dlg');
 
-const state = { items: [], byId: new Map(), editId: null, editCover: '' };
+const state = { items: [], byId: new Map(), visible: [], editId: null,
+                editCover: '', sort: 'new', status: '' };
+try { state.sort = localStorage.getItem('gm.sort') || 'new'; } catch (e) {}
+if (!['new', 'name', 'rating', 'year'].includes(state.sort)) state.sort = 'new';
 let toastTimer, searchTimer, dupTimer;
 
 /* ------------------------------ 工具 ------------------------------ */
@@ -427,25 +467,73 @@ async function load(){
     const rows = await api('/api/games?q=' + encodeURIComponent(q));
     state.items = rows;
     state.byId = new Map(rows.map(r => [r.id, r]));
+    syncStatusOptions(rows);
     render(rows, q);
   } catch (e) {
     if (e.message !== '未登录') toast(e.message, 'error');
   }
 }
 
+function syncStatusOptions(rows){
+  const preferred = ['未下载', '已下载', '游玩中', '已通关', '已弃坑'];
+  const values = [...new Set(rows.map(g => (g.local_status || '').trim()).filter(Boolean))];
+  values.sort((a, b) => {
+    const ia = preferred.indexOf(a), ib = preferred.indexOf(b);
+    if (ia !== -1 || ib !== -1){
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    }
+    return a.localeCompare(b, 'zh-Hans-CN');
+  });
+  const sel = $('#fStatus');
+  sel.innerHTML = '<option value="">全部状态</option>'
+    + values.map(v => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('');
+  if (values.includes(state.status)) sel.value = state.status;
+  else { state.status = ''; sel.value = ''; }
+}
+
+function sortAndFilter(rows, q){
+  const list = state.status
+    ? rows.filter(g => (g.local_status || '') === state.status)
+    : rows.slice();
+  const byName = (a, b) => String(a.name || '')
+    .localeCompare(String(b.name || ''), 'zh-Hans-CN');
+  if (state.sort === 'name'){
+    list.sort(byName);
+  } else if (state.sort === 'rating'){
+    list.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || byName(a, b));
+  } else if (state.sort === 'year'){
+    list.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0) || byName(a, b));
+  } else if (!q){
+    list.sort((a, b) => b.id - a.id);   // 有关键词时保留相关度排序
+  }
+  return list;
+}
+
 function render(rows, q){
-  $('#count').textContent = q ? ('搜索到 ' + rows.length + ' 条') : ('共 ' + rows.length + ' 条游戏');
-  if (!rows.length){
+  const list = sortAndFilter(rows, q);
+  state.visible = list;
+
+  if (state.status) $('#count').textContent = '筛选 ' + list.length + ' / ' + rows.length + ' 条';
+  else if (q) $('#count').textContent = '搜索到 ' + rows.length + ' 条';
+  else $('#count').textContent = '共 ' + rows.length + ' 条游戏';
+
+  if (!list.length){
     grid.innerHTML = '';
     empty.hidden = false;
-    $('#emptyTitle').textContent = q ? '没有匹配的游戏' : '游戏库还是空的';
+    const hasFilter = !!state.status;
+    $('#emptyTitle').textContent = q ? '没有匹配的游戏'
+      : (hasFilter ? '没有符合条件的游戏' : '游戏库还是空的');
     $('#emptyDesc').textContent = q
-      ? '换个关键词试试，支持模糊匹配与相似度排序'
-      : '点击右上角「＋ 新增」开始建立你的游戏库';
+      ? '换个关键词试试：支持中文、英文、全拼和拼音首字母'
+      : (hasFilter ? '试试把状态切回「全部状态」，或清空筛选'
+                   : '点击右上角「＋ 新增」开始建立你的游戏库');
+    $('#emptyReset').hidden = !(q || hasFilter);
     return;
   }
   empty.hidden = true;
-  grid.innerHTML = rows.map(cardHtml).join('');
+  grid.innerHTML = list.map(cardHtml).join('');
 }
 
 function cardHtml(g){
@@ -821,6 +909,13 @@ function openImport(){
     +   '<input type="file" id="impXlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>'
     + '<label class="f full">图片压缩包（可选，.zip）'
     +   '<input type="file" id="impZip" accept=".zip,application/zip"></label>'
+    + '<div class="f full">重复条目处理'
+    +   '<div class="radio-row">'
+    +     '<label class="radio"><input type="radio" name="onDup" value="skip" checked> 跳过（推荐）</label>'
+    +     '<label class="radio"><input type="radio" name="onDup" value="update"> 更新已有条目</label>'
+    +   '</div>'
+    +   '<span class="tiny">更新会覆盖同名条目的字段并保留其原有封面，适合重新导入修订后的表格。</span>'
+    + '</div>'
     + '<div id="impResult"></div>'
     + '<div class="dlg-foot">'
     +   '<button type="button" class="btn" data-close>取消</button>'
@@ -843,6 +938,8 @@ async function doImport(dry){
   const fd = new FormData();
   fd.append('file', file);
   fd.append('dry_run', dry ? '1' : '0');
+  const dupMode = document.querySelector('input[name=onDup]:checked');
+  fd.append('on_dup', dupMode ? dupMode.value : 'skip');
   const zip = $('#impZip').files[0];
   if (zip) fd.append('images_zip', zip);
 
@@ -856,10 +953,12 @@ async function doImport(dry){
       return;
     }
     renderImportResult(d);
+    const updated = d.updated || 0;
     if (dry){
-      toast('预检完成：可导入 ' + d.inserted + ' 条', 'ok');
+      toast('预检完成：可导入 ' + d.inserted + ' 条，可更新 ' + updated + ' 条', 'ok');
     } else {
-      toast('导入完成：新增 ' + d.inserted + ' 条，跳过重复 ' + d.skipped_dup + ' 条，图片 ' + d.images + ' 张', 'ok', 6000);
+      toast('导入完成：新增 ' + d.inserted + ' 条，更新 ' + updated
+        + ' 条，跳过重复 ' + d.skipped_dup + ' 条，图片 ' + d.images + ' 张', 'ok', 6000);
       load();
     }
   } catch (e) {
@@ -883,6 +982,7 @@ function renderImportResult(d){
     '<div class="stats">'
     + '<span>总计 <b>' + d.total + '</b></span>'
     + '<span>' + (d.dry_run ? '可导入' : '已导入') + ' <b class="ok">' + d.inserted + '</b></span>'
+    + '<span>' + (d.dry_run ? '可更新' : '已更新') + ' <b class="ok">' + (d.updated || 0) + '</b></span>'
     + '<span>重复跳过 <b class="warn">' + d.skipped_dup + '</b></span>'
     + '<span>无效 <b class="err">' + d.skipped_invalid + '</b></span>'
     + '<span>图片 <b>' + d.images + '</b></span>'
@@ -891,6 +991,67 @@ function renderImportResult(d){
     + '<summary>逐行明细（最多展示 200 条）</summary>'
     + '<div class="table-wrap"><table><thead><tr><th>行</th><th>游戏名</th><th>结果</th></tr></thead>'
     + '<tbody>' + rows + '</tbody></table></div></details>';
+}
+
+/* ------------------------------ 账号与数据 ------------------------------ */
+function openSettings(){
+  openMask();
+  const username = $('#who').textContent || '';
+  dlg.innerHTML =
+    '<div class="dlg-head"><h2>账号与数据</h2>'
+    + '<button class="icon" data-close aria-label="关闭">✕</button></div>'
+    + '<p class="hint">当前用户：<b>' + esc(username) + '</b>　｜　'
+    + '数据库与封面都在程序同级的 <code>data/</code> 目录。</p>'
+    + '<form id="pwForm" class="form" autocomplete="off">'
+    +   '<label class="f full">当前密码'
+    +     '<input type="password" name="old_password" required autocomplete="current-password" placeholder="请输入当前密码"></label>'
+    +   '<label class="f full">新密码（至少 6 位）'
+    +     '<input type="password" name="new_password" minlength="6" required autocomplete="new-password" placeholder="至少 6 位"></label>'
+    +   '<label class="f full">确认新密码'
+    +     '<input type="password" name="new_password2" minlength="6" required autocomplete="new-password" placeholder="再输入一次"></label>'
+    +   '<div class="dlg-foot" style="grid-column:1/-1; margin-top:6px">'
+    +     '<button type="submit" class="btn primary" id="pwSave">修改密码</button>'
+    +   '</div>'
+    + '</form>'
+    + '<hr class="sep">'
+    + '<div class="settings-row">'
+    +   '<div><b>数据备份</b><p>下载包含 games.db 与全部封面图片的 zip 包，可离线保存或迁移到其他电脑。</p></div>'
+    +   '<button type="button" class="btn" id="btnBackup">下载备份</button>'
+    + '</div>';
+  bindClose();
+  $('#pwForm').addEventListener('submit', changePassword);
+  $('#btnBackup').onclick = () => { location.href = '/api/backup'; };
+}
+
+async function changePassword(e){
+  e.preventDefault();
+  const form = e.target;
+  const oldPw = form.querySelector('[name=old_password]').value;
+  const newPw = form.querySelector('[name=new_password]').value;
+  const newPw2 = form.querySelector('[name=new_password2]').value;
+  if (newPw !== newPw2){ toast('两次输入的新密码不一致', 'warn'); return; }
+  if (newPw.length < 6){ toast('新密码至少 6 位', 'warn'); return; }
+
+  const btn = $('#pwSave');
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '提交中…';
+  try {
+    await api('/api/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+    });
+    closeDlg();
+    toast('密码已修改，下次登录请使用新密码', 'ok', 5000);
+  } catch (err) {
+    if (err.message !== '未登录') toast(err.message || '修改失败', 'error');
+  } finally {
+    if (btn.isConnected){
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
 }
 
 /* ------------------------------ 登录态 / 初始化 ------------------------------ */
@@ -916,7 +1077,28 @@ $('#btnAdd').onclick = () => openEdit();
 $('#btnDup').onclick = openDuplicates;
 $('#btnExport').onclick = exportXlsx;
 $('#btnImport').onclick = openImport;
+$('#btnSettings').onclick = openSettings;
 $('#btnLogout').onclick = logout;
+
+$('#fSort').value = state.sort;
+$('#fStatus').onchange = e => {
+  state.status = e.target.value;
+  render(state.items, $('#q').value.trim());
+};
+$('#fSort').onchange = e => {
+  state.sort = e.target.value;
+  try { localStorage.setItem('gm.sort', state.sort); } catch (err) {}
+  render(state.items, $('#q').value.trim());
+};
+$('#emptyReset').onclick = () => {
+  state.status = '';
+  $('#fStatus').value = '';
+  $('#q').value = '';
+  $('#qClear').hidden = true;
+  clearTimeout(searchTimer);
+  load();
+  $('#q').focus();
+};
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && mask.classList.contains('show')) closeDlg();
