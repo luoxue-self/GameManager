@@ -3,6 +3,11 @@
 本地优先（local-first）的游戏资源管理工具：卡片式浏览、模糊搜索、相似去重、Excel 双向导入导出（含内嵌图片），
 既可打包成**双击即用的 Windows exe**，也能以**网页登录**的方式在局域网共享。数据全部放在程序同级的 `data/` 文件夹里，拷走即迁移。
 
+[![GitHub](https://img.shields.io/badge/GitHub-luoxue--self%2FGameManager-181717?logo=github)](https://github.com/luoxue-self/GameManager)
+[![Release](https://img.shields.io/github/v/release/luoxue-self/GameManager?display_name=tag)](https://github.com/luoxue-self/GameManager/releases)
+
+仓库地址：<https://github.com/luoxue-self/GameManager>
+
 ![主界面](docs/screenshot.png)
 
 > 第一次使用？请先看 **[使用指南.html](使用指南.html)**（图文版，双击即可阅读），
@@ -40,7 +45,7 @@
 
 ### 方式一：下载 exe（普通用户）
 
-1. 到 [Releases](../../releases) 下载最新的 `游戏库管理器.zip`；
+1. 到 [Releases](https://github.com/luoxue-self/GameManager/releases) 下载最新的 `游戏库管理器.zip`；
 2. 解压到**桌面或 D 盘**（不要放 `C:\Program Files` 这类无写权限目录）；
 3. 双击 `游戏库管理器.exe`；
 4. 首次启动会自动生成管理员账号，密码写在 `data/初始密码.txt`，登录后请修改密码并删除该文件。
@@ -337,6 +342,12 @@ Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwe
 - v1.1.1 检查报告：[docs/完整性检查报告.md](docs/完整性检查报告.md)
 - 32 个自动化测试、41 项真实 API 验收、界面走查、打包 exe 与整合包复测均通过
 - 面向普通用户的图文指南：[使用指南.html](使用指南.html) ｜ [使用指南.md](使用指南.md)
+
+## 🌐 GitHub 发布
+
+- 仓库：<https://github.com/luoxue-self/GameManager>
+- 上传与发布指南：[docs/GitHub上传指南.md](docs/GitHub上传指南.md)
+- 推送 `main` 会自动跑测试和打包；打 `v*` 标签会自动创建 Release 并附上 Windows exe。
 
 ## 📄 License
 

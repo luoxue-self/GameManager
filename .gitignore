@@ -3,11 +3,14 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+env/
 *.egg-info/
 
 # 运行时数据（★重要：不要提交用户数据）
 data/*
 !data/.gitkeep
+.secret
+*.db
 
 # 打包产物
 build/
@@ -18,8 +21,16 @@ release/
 # 测试缓存
 .pytest_cache/
 
+# 编辑器
+.vscode/
+.idea/
+
 # 需求附件（仅本地保留，已归档为 docs/architecture.png）
 file_*.png
+
+# 本地参考材料（已整理进 docs/GitHub上传指南.md 与 docs/GitHub仓库初始状态.png）
+GameManager上传参考指南.md
+GitHub图片.png
 
 # 系统
 .DS_Store
