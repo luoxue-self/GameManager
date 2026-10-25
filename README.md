@@ -316,6 +316,13 @@ Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwe
 
 ## 📝 更新日志
 
+### 收尾（2026-10-25）
+
+- 仓库不再跟踪 `data/`，运行数据完全留在本机
+- 新增 `tools/clean.py` 安全清理脚本（保留 `data/` 与 `release/*.zip`）
+- 新增 [docs/项目收尾报告.md](docs/项目收尾报告.md)
+- 自动化测试增至 34 个
+
 ### v1.1.1
 
 - 修复：Excel 导入「更新已有条目」时，库中有多条近似记录会反复匹配同一条；现在优先完全同名，再按相似度取最佳匹配
@@ -342,13 +349,21 @@ Windows exe 不行；源码可以运行（pywebview 跨平台，Linux 需 `libwe
 ## ✅ 完整性检查
 
 - v1.1.1 检查报告：[docs/完整性检查报告.md](docs/完整性检查报告.md)
-- 32 个自动化测试、41 项真实 API 验收、界面走查、打包 exe 与整合包复测均通过
+- 34 个自动化测试、41 项真实 API 验收、界面走查、打包 exe 与整合包复测均通过
 - 面向普通用户的图文指南：[使用指南.html](使用指南.html) ｜ [使用指南.md](使用指南.md)
+
+## 🧹 项目收尾
+
+- 收尾报告：[docs/项目收尾报告.md](docs/项目收尾报告.md)
+- 本地安全清理：`python tools/clean.py --dry-run` 预览，`python tools/clean.py --yes` 执行；
+  只清理 build/dist/缓存，**保留 `data/` 与 `release/*.zip`**
+- 仓库不再跟踪 `data/`，所有游戏数据只留在本机
 
 ## 🌐 GitHub 发布
 
 - 仓库：<https://github.com/luoxue-self/GameManager>
 - 上传与发布指南：[docs/GitHub上传指南.md](docs/GitHub上传指南.md)
+- Release：[v1.1.1](https://github.com/luoxue-self/GameManager/releases/tag/v1.1.1)
 - 推送 `main` 会自动跑测试和打包；打 `v*` 标签会自动创建 Release 并附上 Windows exe。
 
 ## 📄 License
