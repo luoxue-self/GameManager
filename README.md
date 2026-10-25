@@ -45,7 +45,9 @@
 
 ### 方式一：下载 exe（普通用户）
 
-1. 到 [Releases](https://github.com/luoxue-self/GameManager/releases) 下载最新的 `游戏库管理器.zip`；
+1. 到 [Releases](https://github.com/luoxue-self/GameManager/releases) 下载最新的
+   `GameManager-v1.1.1-integration.zip`（整合包，含 exe、指南、源码），
+   或单独下载 `GameManager-v1.1.1.exe`；
 2. 解压到**桌面或 D 盘**（不要放 `C:\Program Files` 这类无写权限目录）；
 3. 双击 `游戏库管理器.exe`；
 4. 首次启动会自动生成管理员账号，密码写在 `data/初始密码.txt`，登录后请修改密码并删除该文件。

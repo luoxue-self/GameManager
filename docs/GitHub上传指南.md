@@ -172,7 +172,9 @@ branch 'main' set up to track 'origin/main'.
 本项目 `.github/workflows/build.yml` 已配置：
 
 - push 到 `main`：运行 pytest + Windows 打包（artifact）
-- push `v*` 标签：额外自动创建 Release，并附上 `游戏库管理器.exe`
+- push `v*` 标签：额外自动创建 Release，并附上 exe
+- 由于 GitHub 会把中文附件名清洗成 `default.exe`，workflow 会先把 exe 复制成
+  `GameManager-<tag>.exe` 再上传，保证附件名稳定
 
 发布 v1.1.1：
 
@@ -187,7 +189,9 @@ git push origin v1.1.1
 - 等待 `Build Windows EXE` 的 test + build 两个 job 变绿
 - Releases：<https://github.com/luoxue-self/GameManager/releases>
 
-如果 Release 没有自动附件，到 Actions 对应 run 下载 `game-manager-windows` artifact，
+Release 里的 `GameManager-v1.1.1.exe` 由 Actions 构建；`GameManager-v1.1.1-integration.zip`
+是本地按 `tools/make_package.py` 生成的整合包，已手动附加到 Release。
+如果 Release 没有附件，到 Actions 对应 run 下载 `game-manager-windows` artifact，
 手动拖到 Release 的附件区域即可。
 
 ---
@@ -214,7 +218,8 @@ Release 标题：`v1.1.1 完整性检查与使用指南`
 - 编辑弹窗「游戏名 *」星号换行
 
 ### 下载
-- `游戏库管理器.exe`（Windows 10 1803+ / 11，需要 WebView2）
+- `GameManager-v1.1.1.exe`（Windows 10 1803+ / 11，需要 WebView2）
+- `GameManager-v1.1.1-integration.zip`（整合包：exe + 指南 + 源码）
 - 解压后双击，首次启动密码见 `data/初始密码.txt`
 
 ### 数据安全
@@ -234,18 +239,35 @@ Release 标题：`v1.1.1 完整性检查与使用指南`
 | `403` / 没有权限 | 检查登录账号是否为 `luoxue-self`；PAT 是否有 `repo` + `workflow` |
 | push 后 Actions 不运行 | 确认标签以 `v` 开头，且 `.github/workflows/build.yml` 已推送 |
 | Release 里没有 exe | 下载 Actions artifact 手动上传，或检查 step 日志 |
+| Release 附件变成 `default.exe` | GitHub 对中文附件名会清洗；workflow 已改为先复制成 `GameManager-<tag>.exe` 再上传 |
 | 中文路径打包失败 | workflow 文件必须 UTF-8；本地已验证 `dist/游戏库管理器/游戏库管理器.exe` 可构建 |
 
 ---
 
 ## 9. 本次上传记录
 
+![GitHub 仓库最终状态](GitHub仓库.png)
+
 - 仓库：<https://github.com/luoxue-self/GameManager>
 - 默认分支：`main`
-- 目标标签：`v1.1.1`
-- 本地提交：`1bea3cf`（完整性检查、使用指南、整合包工具）
-- 远程初始提交：`ad71ed8`
-- Actions：<https://github.com/luoxue-self/GameManager/actions>
-- Releases：<https://github.com/luoxue-self/GameManager/releases>
+- 远程初始提交：`ad71ed8`（保留，未 force push）
+- 合并提交：`c52469c`（`merge: 合并 GitHub 初始仓库`）
+- 标签：`v1.1.1`
+- Actions（main）：<https://github.com/luoxue-self/GameManager/actions/runs/40192787975> ✅
+- Actions（tag）：<https://github.com/luoxue-self/GameManager/actions/runs/40192837829> ✅
+- Release：<https://github.com/luoxue-self/GameManager/releases/tag/v1.1.1> ✅
+- 附件：
+  - `GameManager-v1.1.1.exe`（8,974,473 字节）
+  - `GameManager-v1.1.1-integration.zip`（33,099,605 字节）
 
-> 推送完成后，可在本文件补充实际 merge commit、Actions run 链接和 Release 链接。
+### 上传结果检查
+
+- [x] `main` 分支可访问，文件完整
+- [x] README / LICENSE / 使用指南 / docs / tests / tools 已上传
+- [x] 远程 `Initial commit` 保留在历史中
+- [x] Actions 的 test + build 均通过
+- [x] Release `v1.1.1` 已发布，附件可下载
+- [x] 仓库中不含 `data/games.db`、`.secret`、`dist/`、`release/` 或 Token
+- [x] 整合包已附加到 Release
+
+> 2026-10-25 完成上传；后续文档更新会在 `main` 上继续提交。
